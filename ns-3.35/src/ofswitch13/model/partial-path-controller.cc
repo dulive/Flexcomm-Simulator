@@ -101,14 +101,21 @@ FlexWeightCalc::FlexWeightCalc (std::set<uint32_t> unwanted) : unwanted (unwante
 void
 FlexWeightCalc::CalculateWeights ()
 {
-  auto sw_container = NodeContainer::GetGlobalSwitches ();
-  for (auto it = sw_container.Begin (); it != sw_container.End (); ++it)
+  auto node_container = NodeContainer::GetGlobal ();
+  for (auto it = node_container.Begin (); it != node_container.End (); ++it)
     {
       uint32_t node_id = (*it)->GetId ();
-      Ptr<OFSwitch13Device> of_sw = (*it)->GetObject<OFSwitch13Device> ();
-      uint64_t dpid = of_sw->GetDpId ();
-      double flex = FlexPuller::GetRealFlex (dpid);
-      weights[node_id] = FlexWeight (of_sw->GetCpuUsage (), flex < 0 ? -1 : 0);
+      if ((*it)->IsHost ())
+        {
+          weights[node_id] = GetInitialWeight ();
+        }
+      else if ((*it)->IsSwitch ())
+        {
+          Ptr<OFSwitch13Device> of_sw = (*it)->GetObject<OFSwitch13Device> ();
+          uint64_t dpid = of_sw->GetDpId ();
+          double flex = FlexPuller::GetRealFlex (dpid);
+          weights[node_id] = FlexWeight (of_sw->GetCpuUsage (), flex < 0 ? -1 : 0);
+        }
     }
 }
 
