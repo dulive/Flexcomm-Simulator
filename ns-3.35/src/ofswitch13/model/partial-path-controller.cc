@@ -206,7 +206,7 @@ PartialPathController::HandshakeSuccessful (Ptr<const RemoteSwitch> swtch)
         {
           Ipv4Address ip = (*it)->GetObject<Ipv4> ()->GetAddress (1, 0).GetLocal ();
           std::ostringstream cmd;
-          cmd << "flow-mod cmd=add,table=0 eth_type=0x0800,ip_dst=" << ip
+          cmd << "flow-mod cmd=add,table=0,eth_type=0x800,ip_dst=" << ip
               << " apply:output=" << out_port;
 
           NS_LOG_DEBUG ("[" << dpid << "]: " << cmd.str ());
@@ -271,7 +271,7 @@ PartialPathController::AddRules (std::vector<Ptr<Node>> path, flow_id_t flow)
       // flags OFPFF_SEND_FLOW_REM OFPFF_RESET_COUNTS (0b0101 -> flags=0x0005)
       cmd << "flow-mod cmd=add,table=0,idle=60,flags=0x0005,prio=1000"
           /* << " in_port=" << in_port */
-          << ",eth_type=0x0800,ip_proto=17"
+          << ",eth_type=0x800,ip_proto=17"
           << ",ip_src=" << get<0> (flow) << ",ip_dst=" << get<2> (flow)
           << ",udp_src=" << get<1> (flow) << ",udp_dst=" << get<3> (flow)
           << " apply:output=" << out_port;
@@ -293,7 +293,7 @@ PartialPathController::DelRules (std::set<Ptr<Node>> del_nodes, flow_id_t flow)
       // flags OFPFF_SEND_FLOW_REM (0b0001 -> flags=0x0001)
       cmd << "flow-mod cmd=del,table=0,flags=0x0001"
           /* <<",in_port=" << in_port */
-          << ",eth_type=0x0800,ip_proto=17,ip_src=" << get<0> (flow) << ",ip_dst=" << get<2> (flow)
+          << ",eth_type=0x800,ip_proto=17,ip_src=" << get<0> (flow) << ",ip_dst=" << get<2> (flow)
           << ",udp_src=" << get<1> (flow) << ",udp_dst=" << get<3> (flow);
 
       NS_LOG_DEBUG ("[" << dpid << "]: " << cmd.str ());
