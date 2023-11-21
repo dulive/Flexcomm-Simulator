@@ -271,7 +271,6 @@ PartialPathController::AddRules (std::vector<Ptr<Node>> path, flow_id_t flow)
       std::stringstream cmd;
       // flags OFPFF_SEND_FLOW_REM OFPFF_RESET_COUNTS (0b0101 -> flags=0x0005)
       cmd << "flow-mod cmd=add,table=0,idle=60,flags=0x0005,prio=1000"
-          /* << " in_port=" << in_port */
           << " eth_type=0x800,ip_proto=17"
           << ",ip_src=" << get<0> (flow) << ",ip_dst=" << get<2> (flow)
           << ",udp_src=" << get<1> (flow) << ",udp_dst=" << get<3> (flow)
@@ -293,7 +292,6 @@ PartialPathController::DelRules (std::set<Ptr<Node>> del_nodes, flow_id_t flow)
       std::stringstream cmd;
       // flags OFPFF_SEND_FLOW_REM (0b0001 -> flags=0x0001)
       cmd << "flow-mod cmd=del,table=0,flags=0x0001"
-          /* <<",in_port=" << in_port */
           << " eth_type=0x800,ip_proto=17,ip_src=" << get<0> (flow) << ",ip_dst=" << get<2> (flow)
           << ",udp_src=" << get<1> (flow) << ",udp_dst=" << get<3> (flow);
 
@@ -309,7 +307,6 @@ PartialPathController::HandlePacketIn (struct ofl_msg_packet_in *msg, Ptr<const 
   NS_LOG_FUNCTION (this << swtch << xid);
 
   char *msgStr = ofl_structs_match_to_string ((struct ofl_match_header *) msg->match, 0);
-  /* std::cout << "Packet in match: " << msgStr << std::endl; */
   NS_LOG_DEBUG ("Packet in match: " << msgStr);
   free (msgStr);
 
@@ -379,6 +376,10 @@ PartialPathController::HandleFlowRemoved (struct ofl_msg_flow_removed *msg,
   NS_LOG_FUNCTION (this);
   if (msg->reason == OFPRR_IDLE_TIMEOUT)
     {
+      char *msgStr = ofl_structs_match_to_string ((struct ofl_match_header *) msg->stats->match, 0);
+      NS_LOG_DEBUG ("Packet in match: " << msgStr);
+      free (msgStr);
+
       Ptr<Node> node = OFSwitch13Device::GetDevice (swtch->GetDpId ())->GetObject<Node> ();
       flow_id_t flow = ExtractFlow ((struct ofl_match *) msg->stats->match);
       std::set<flow_id_t> flows = m_sw_rm_apps[node];
