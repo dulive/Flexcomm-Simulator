@@ -382,13 +382,7 @@ PartialPathController::HandleFlowRemoved (struct ofl_msg_flow_removed *msg,
 
       Ptr<Node> node = OFSwitch13Device::GetDevice (swtch->GetDpId ())->GetObject<Node> ();
       flow_id_t flow = ExtractFlow ((struct ofl_match *) msg->stats->match);
-      std::set<flow_id_t> flows = m_sw_rm_apps[node];
-      std::set<flow_id_t>::iterator it = find (flows.cbegin (), flows.cend (), flow);
-      if (it != flows.end ())
-        {
-          flows.erase (it);
-        }
-      // TODO: verify if there is any issue with this
+      m_sw_rm_apps[node].erase (flow);
       m_state.erase (flow);
     }
   ofl_msg_free_flow_removed (msg, true, 0);
@@ -417,12 +411,13 @@ PartialPathController::Balancer (void)
         {
           for (flow_id_t flow : flows_rm)
             {
-              std::vector<Ptr<Node>> old_path = m_state[flow];
+              std::vector<Ptr<Node>> old_path = m_state.at (flow);
               auto path_it = std::find (old_path.crbegin (), old_path.crend (), node);
 
               auto src_it =
                   std::find_if (std::next (path_it), std::prev (old_path.crend ()), respects_flex);
-              auto dst_it = std::find_if (path_it.base (), old_path.cend (), respects_flex);
+              auto dst_it =
+                  std::find_if (path_it.base (), std::prev (old_path.cend ()), respects_flex);
 
               std::set<uint32_t> unwanted;
               std::transform (std::next (src_it), old_path.crend (),
@@ -431,6 +426,7 @@ PartialPathController::Balancer (void)
               std::transform (std::next (dst_it), old_path.cend (),
                               std::inserter (unwanted, unwanted.begin ()),
                               [] (Ptr<Node> node) { return node->GetId (); });
+
               weight_calc.SetUnwanted (unwanted);
               std::vector<Ptr<Node>> new_path =
                   Topology::DijkstraShortestPath (*src_it, *dst_it, weight_calc);
@@ -457,9 +453,16 @@ PartialPathController::Balancer (void)
               for (Ptr<Node> node : intersection)
                 m_sw_rm_apps[node].erase (flow);
 
-              auto erase_iter =
-                  m_state[flow].erase (std::prev (src_it.base ()), std::next (dst_it));
-              m_state[flow].insert (erase_iter, new_path.cbegin (), new_path.cend ());
+              std::size_t size = old_path.size () - old_part.size () + new_path.size ();
+
+              std::vector<Ptr<Node>> complete_path;
+              complete_path.reserve (size);
+              complete_path.insert (complete_path.end (), old_path.cbegin (),
+                                    std::prev (src_it.base ()));
+              complete_path.insert (complete_path.end (), new_path.cbegin (), new_path.cend ());
+              complete_path.insert (complete_path.end (), std::next (dst_it), old_path.cend ());
+
+              m_state[flow] = complete_path;
             }
         }
     }
