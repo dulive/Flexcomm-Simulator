@@ -45,19 +45,19 @@ FlexWeight::FlexWeight (double max_usage, int value, int hops)
 }
 
 double
-FlexWeight::GetMaxUsage ()
+FlexWeight::GetMaxUsage () const
 {
   return max_usage;
 }
 
 int
-FlexWeight::GetValue ()
+FlexWeight::GetValue () const
 {
   return value;
 }
 
 int
-FlexWeight::GetHops ()
+FlexWeight::GetHops () const
 {
   return hops;
 }
@@ -65,7 +65,7 @@ FlexWeight::GetHops ()
 FlexWeight
 FlexWeight::operator+ (const FlexWeight &b) const
 {
-  return FlexWeight (std::max (max_usage, b.max_usage), value + b.value, hops + b.hops + 1);
+  return FlexWeight (std::max (max_usage, b.max_usage), value + b.value, hops + b.hops);
 }
 
 bool
@@ -76,8 +76,8 @@ FlexWeight::operator< (const FlexWeight &b) const
   else if (max_usage < 1 && b.max_usage >= 1)
     return true;
   else
-    return value == b.value ? (hops == b.hops ? max_usage < b.max_usage : hops < b.hops)
-                            : value > b.value;
+    return value == b.value ? hops == b.hops ? max_usage < b.max_usage : hops < b.hops
+                            : value < b.value;
 }
 
 bool
@@ -107,14 +107,14 @@ FlexWeightCalc::CalculateWeights ()
       uint32_t node_id = (*it)->GetId ();
       if ((*it)->IsHost ())
         {
-          weights[node_id] = GetInitialWeight ();
+          weights.insert ({node_id, GetInitialWeight ()});
         }
       else if ((*it)->IsSwitch ())
         {
           Ptr<OFSwitch13Device> of_sw = (*it)->GetObject<OFSwitch13Device> ();
           uint64_t dpid = of_sw->GetDpId ();
           double flex = FlexPuller::GetRealFlex (dpid);
-          weights[node_id] = FlexWeight (of_sw->GetCpuUsage (), flex < 0 ? -1 : 0);
+          weights.insert ({node_id, FlexWeight (of_sw->GetCpuUsage (), flex < 0 ? 1 : 0)});
         }
     }
 }
@@ -138,7 +138,11 @@ FlexWeightCalc::GetWeight (Edge &e) const
   if (unwanted.find (e.second) != unwanted.end ())
     return GetNonViableWeight ();
 
-  return weights.at (e.second);
+  FlexWeight weight1 = weights.at (e.first);
+  FlexWeight weight2 = weights.at (e.second);
+
+  return FlexWeight (std::max (weight1.GetMaxUsage (), weight2.GetMaxUsage ()),
+                     weight1.GetValue () + weight2.GetValue (), 1);
 }
 
 FlexWeight

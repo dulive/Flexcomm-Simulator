@@ -22,9 +22,9 @@ public:
   FlexWeight (double, int);
   FlexWeight (double, int, int);
 
-  double GetMaxUsage ();
-  int GetValue ();
-  int GetHops ();
+  double GetMaxUsage () const;
+  int GetValue () const;
+  int GetHops () const;
 
   FlexWeight operator+ (const FlexWeight &b) const;
   bool operator< (const FlexWeight &b) const;
@@ -35,7 +35,7 @@ class FlexWeightCalc : public WeightCalc<FlexWeight>
 {
 private:
   std::set<uint32_t> unwanted;
-  std::unordered_map<uint32_t, FlexWeight> weights;
+  std::unordered_map<uint32_t, const FlexWeight> weights;
 
   void CalculateWeights (void);
 
