@@ -17,19 +17,31 @@ def parse_args():
     return parser.parse_args()
 
 
-def report_values(consumptions, total_con):
+def report_values(consumptions, power_drawn):
     table = []
     for node in consumptions:
-        table.append([node, consumptions[node]])
+        table.append([node, max(consumptions[node]), power_drawn[node][-1]])
     print(
         tabulate(
-            table, headers=["Nodes", "Consumption (J)"], tablefmt="pretty"
+            table,
+            headers=["Nodes", "Max Consumption (W)", "Power Drawn (Wh)"],
+            tablefmt="pretty",
         )
     )
-    print("Total Consumption: {} kW".format(total_con / 1000))
+    print(
+        "Total Max Consumption: {} kW".format(
+            max(map(sum, zip(*consumptions.values()))) / 1000
+        )
+    )
+    print(
+        "Total Power Drawn: {} kWh".format(
+            sum(p[-1] for p in power_drawn.values()) / 1000
+        )
+    )
 
 
-def draw_plots(x, y):
+def draw_plots(title, x, y, ylabel):
+    plt.figure(title)
     color_index = 0
 
     for node in y:
@@ -58,8 +70,7 @@ def draw_plots(x, y):
 
     plt.legend()
     plt.xlabel("Time Interval (s)")
-    plt.ylabel("Consumption (W)")
-    plt.show()
+    plt.ylabel(ylabel)
 
 
 def read_file(file_path, drawPlot):
@@ -68,36 +79,26 @@ def read_file(file_path, drawPlot):
 
         # Parse File
         x = SortedSet()
-        y = {}
+        y_consumption = {}
+        y_power_drawn = {}
         for row in data:
             time = float(row[0])
             node = row[1]
             conso = float(row[2])
+            power_drawn = float(row[3])
             x.add(time)
-            if node not in y:
-                y[node] = [conso]
+            if node not in y_consumption:
+                y_consumption[node] = [conso]
+                y_power_drawn[node] = [power_drawn]
             else:
-                y[node].append(conso)
+                y_consumption[node].append(conso)
+                y_power_drawn[node].append(power_drawn)
 
-        # Calculate consumptions
-        consumptions = {}
-        total_con = 0.0
-
-        for node in y:
-            consumptions[node] = 0.0
-            previous_time = 0.0
-
-            for i in range(len(x)):
-                current_time = x[i]
-                interval = current_time - previous_time
-                previous_time = current_time
-                consumption = interval * y[node][i]
-                consumptions[node] += consumption
-                total_con += consumption
-
-        report_values(consumptions, total_con)
+        report_values(y_consumption, y_power_drawn)
         if drawPlot:
-            draw_plots(x, y)
+            draw_plots("Consumption over time", x, y_consumption, "Consumption (W)")
+            draw_plots("Power drawn over time", x, y_power_drawn, "Power drawn (Wh)")
+            plt.show()
 
 
 if __name__ == "__main__":
