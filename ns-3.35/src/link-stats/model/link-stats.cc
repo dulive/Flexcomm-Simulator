@@ -57,10 +57,11 @@ void
 LinkStats::LogStatsInternal (Ptr<OutputStreamWrapper> streamWrapper)
 {
   std::string linkName = Names::FindName (m_channel);
+  uint64_t linkLoad = m_channel->GetDataRate ().GetBitRate () * m_channel->GetChannelUsage ();
 
   std::ostream *stream = streamWrapper->GetStream ();
-  *stream << std::fixed << Simulator::Now ().GetSeconds () << ";" << linkName << ";"
-          << m_channel->GetChannelUsage () << "\n";
+  *stream << Simulator::Now ().GetSeconds () << ";" << linkName << ";"
+          << m_channel->GetChannelUsage () << ";" << linkLoad << "\n";
 }
 
 void
