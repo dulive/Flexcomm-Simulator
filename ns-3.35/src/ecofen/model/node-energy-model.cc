@@ -21,9 +21,7 @@
 #include "node-energy-model.h"
 #include "ns3/ofswitch13-device.h"
 #include "ns3/uinteger.h"
-#include "ns3/log.h"
 #include "ns3/simulator.h"
-#include "ns3/node-container.h"
 #include "ns3/loopback-net-device.h"
 #include "ns3/core-module.h"
 
@@ -156,7 +154,8 @@ NodeEnergyModel::LogTotalPowerConsumption (Ptr<Node> node, Ptr<OutputStreamWrapp
   std::string nodeName = Names::FindName (node);
 
   std::ostream *stream = streamWrapper->GetStream ();
-  *stream << Simulator::Now ().GetSeconds () << ";" << nodeName << ";" << m_lastConso << "\n";
+  *stream << Simulator::Now ().GetSeconds () << ";" << nodeName << ";" << m_lastConso << ";"
+          << m_powerDrawn << "\n";
 }
 
 void
