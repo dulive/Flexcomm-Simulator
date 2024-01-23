@@ -1,14 +1,75 @@
 #ifndef PARTIAL_PATH_CONTROLLER_H
 #define PARTIAL_PATH_CONTROLLER_H
 
+#include "ns3/ipv4-address.h"
+#include "ns3/mac48-address.h"
 #include "ns3/ofswitch13-controller.h"
 #include "ns3/topology.h"
+#include <boost/container_hash/hash_fwd.hpp>
+#include <cstddef>
 #include <cstdint>
+#include <sstream>
 #include <unordered_map>
 
 namespace ns3 {
 
-using flow_id_t = std::tuple<Ipv4Address, uint16_t, Ipv4Address, uint16_t>;
+struct Flow
+{
+  Mac48Address src_mac;
+  Mac48Address dst_mac;
+  uint16_t eth_type = 0;
+
+  Ipv4Address src_ip;
+  Ipv4Address dst_ip;
+  uint16_t ip_proto = 0;
+
+  uint16_t src_port = 0;
+  uint16_t dst_port = 0;
+
+  uint16_t priority = 0;
+
+  bool
+  operator== (const Flow &flow) const
+  {
+    return src_mac == flow.src_mac && dst_mac == flow.dst_mac && eth_type == flow.eth_type &&
+           src_ip == flow.src_ip && dst_ip == flow.dst_ip && ip_proto == flow.ip_proto &&
+           src_port == flow.src_port && dst_port == flow.dst_port;
+  }
+
+  bool
+  operator< (const Flow &flow) const
+  {
+    return src_mac < flow.src_mac && dst_mac < flow.dst_mac && eth_type < flow.eth_type &&
+           src_ip < flow.src_ip && dst_ip < flow.dst_ip && ip_proto < flow.ip_proto &&
+           src_port < flow.src_port && dst_port < flow.dst_port;
+  }
+};
+
+struct hash_fn
+{
+  std::size_t
+  operator() (const Flow &flow) const
+  {
+    std::size_t seed = 0;
+    uint8_t buffer[6];
+    flow.src_mac.CopyTo (buffer);
+    boost::hash_combine (seed, buffer);
+    flow.dst_mac.CopyTo (buffer);
+    boost::hash_combine (seed, buffer);
+    boost::hash_combine (seed, flow.eth_type);
+
+    boost::hash_combine (seed, flow.src_ip.Get ());
+    boost::hash_combine (seed, flow.dst_ip.Get ());
+    boost::hash_combine (seed, flow.ip_proto);
+
+    boost::hash_combine (seed, flow.src_port);
+    boost::hash_combine (seed, flow.dst_port);
+
+    boost::hash_combine (seed, flow.priority);
+
+    return seed;
+  }
+};
 
 class FlexWeight
 {
@@ -76,15 +137,16 @@ protected:
   /*                               Ptr<const RemoteSwitch> swtch, uint32_t xid) override; */
 
 private:
-  std::map<flow_id_t, std::vector<Ptr<Node>>> m_state;
-  std::map<Ptr<Node>, std::set<flow_id_t>> m_sw_rm_apps;
+  std::unordered_map<Flow, std::vector<Ptr<Node>>, hash_fn> m_state;
+  // add comparator
+  std::map<Ptr<Node>, std::set<Flow>> m_sw_rm_apps;
 
-  Ipv4Address ExtractIpAddress (uint32_t oxm, struct ofl_match *match);
-  flow_id_t ExtractFlow (struct ofl_match *match);
+  Flow ExtractFlow (struct ofl_match *match);
   uint32_t ExtractInPort (struct ofl_match *match);
 
-  void AddRules (std::vector<Ptr<Node>> path, flow_id_t flow);
-  void DelRules (std::set<Ptr<Node>> del_nodes, flow_id_t flow);
+  void FlowMatching (std::stringstream &cmd, Flow flow);
+  void AddRules (std::vector<Ptr<Node>> path, Flow flow);
+  void DelRules (std::set<Ptr<Node>> del_nodes, Flow flow);
 
   void Balancer (void);
 };

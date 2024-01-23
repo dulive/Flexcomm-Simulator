@@ -1,18 +1,25 @@
 #include "flex-puller.h"
 #include "ns3/ipv4.h"
 #include "ns3/log.h"
+#include "ns3/mac48-address.h"
 #include "ns3/node-container.h"
 #include "ns3/node-list.h"
 #include "ns3/nstime.h"
 #include "ns3/object-base.h"
 #include "ns3/ofswitch13-device.h"
-#include "ns3/topology.h"
+#include "ofl-packets.h"
 #include "ofswitch13-device.h"
+#include "openflow/openflow.h"
+#include "oxm-match.h"
+#include "packets.h"
 #include "partial-path-controller.h"
 #include <algorithm>
+#include <boost/graph/properties.hpp>
 #include <cstdint>
+#include <cstring>
 #include <iterator>
 #include <limits>
+#include <netinet/in.h>
 #ifdef NS3_OFSWITCH13
 
 NS_LOG_COMPONENT_DEFINE ("PartialPathController");
@@ -223,31 +230,68 @@ PartialPathController::HandshakeSuccessful (Ptr<const RemoteSwitch> swtch)
   FlexPuller::InnitNode (dpid);
 }
 
-Ipv4Address
-PartialPathController::ExtractIpAddress (uint32_t oxm, struct ofl_match *match)
-{
-  uint32_t ip;
-  int size = OXM_LENGTH (oxm);
-  struct ofl_match_tlv *tlv = oxm_match_lookup (oxm, match);
-  memcpy (&ip, tlv->value, size);
-  return Ipv4Address (ntohl (ip));
-}
-
-flow_id_t
+Flow
 PartialPathController::ExtractFlow (struct ofl_match *match)
 {
-  Ipv4Address src_ip, dst_ip;
-  src_ip = ExtractIpAddress (OXM_OF_IPV4_SRC, match);
-  dst_ip = ExtractIpAddress (OXM_OF_IPV4_DST, match);
-
+  Flow flow;
   struct ofl_match_tlv *tlv;
-  uint16_t src_port, dst_port;
-  tlv = oxm_match_lookup (OXM_OF_UDP_SRC, match);
-  memcpy (&src_port, tlv->value, OXM_LENGTH (OXM_OF_UDP_SRC));
-  tlv = oxm_match_lookup (OXM_OF_UDP_DST, match);
-  memcpy (&dst_port, tlv->value, OXM_LENGTH (OXM_OF_UDP_DST));
+  tlv = oxm_match_lookup (OXM_OF_ETH_TYPE, match);
+  memcpy (&flow.eth_type, tlv->value, OXM_LENGTH (OXM_OF_ETH_TYPE));
 
-  return flow_id_t (src_ip, src_port, dst_ip, dst_port);
+  flow.priority = 500;
+
+  if (flow.eth_type == ETH_TYPE_IP)
+    {
+      uint32_t ip;
+      tlv = oxm_match_lookup (OXM_OF_IPV4_SRC, match);
+      memcpy (&ip, tlv->value, OXM_LENGTH (OXM_OF_IPV4_SRC));
+      flow.src_ip = Ipv4Address (ntohl (ip));
+
+      tlv = oxm_match_lookup (OXM_OF_IPV4_DST, match);
+      memcpy (&ip, tlv->value, OXM_LENGTH (OXM_OF_IPV4_DST));
+      flow.dst_ip = Ipv4Address (ntohl (ip));
+
+      tlv = oxm_match_lookup (OXM_OF_IP_PROTO, match);
+      memcpy (&flow.ip_proto, tlv->value, OXM_LENGTH (OXM_OF_IP_PROTO));
+
+      flow.priority += 500;
+
+      switch (flow.ip_proto)
+        {
+        case IP_TYPE_TCP:
+          tlv = oxm_match_lookup (OXM_OF_TCP_SRC, match);
+          memcpy (&flow.src_port, tlv->value, OXM_LENGTH (OXM_OF_TCP_SRC));
+
+          tlv = oxm_match_lookup (OXM_OF_TCP_DST, match);
+          memcpy (&flow.dst_port, tlv->value, OXM_LENGTH (OXM_OF_TCP_DST));
+
+          flow.priority += 500;
+          break;
+        case IP_TYPE_UDP:
+          tlv = oxm_match_lookup (OXM_OF_UDP_SRC, match);
+          memcpy (&flow.src_port, tlv->value, OXM_LENGTH (OXM_OF_UDP_SRC));
+
+          tlv = oxm_match_lookup (OXM_OF_UDP_DST, match);
+          memcpy (&flow.dst_port, tlv->value, OXM_LENGTH (OXM_OF_UDP_DST));
+
+          flow.priority += 500;
+          break;
+        default:
+          break;
+        }
+    }
+  else
+    {
+      flow.src_mac = Mac48Address ();
+      tlv = oxm_match_lookup (OXM_OF_ETH_SRC, match);
+      flow.src_mac.CopyFrom (tlv->value);
+
+      flow.dst_mac = Mac48Address ();
+      tlv = oxm_match_lookup (OXM_OF_ETH_DST, match);
+      flow.dst_mac.CopyFrom (tlv->value);
+    }
+
+  return flow;
 }
 
 uint32_t
@@ -263,7 +307,34 @@ PartialPathController::ExtractInPort (struct ofl_match *match)
 }
 
 void
-PartialPathController::AddRules (std::vector<Ptr<Node>> path, flow_id_t flow)
+PartialPathController::FlowMatching (std::stringstream &cmd, Flow flow)
+{
+  cmd << "prio=" << flow.priority;
+  if (flow.eth_type != ETH_TYPE_IP)
+    {
+      cmd << ",eth_dst=" << flow.dst_mac << ",eth_src=" << flow.src_mac
+          << ",eth_type=" << flow.eth_type;
+    }
+  else
+    {
+      cmd << ",eth_type=" << flow.eth_type << ",ip_proto=" << flow.ip_proto
+          << ",ip_src=" << flow.src_ip << ",ip_dst=" << flow.dst_ip;
+      switch (flow.ip_proto)
+        {
+        case IP_TYPE_TCP:
+          cmd << ",tcp_src=" << flow.src_port << ",tcp_dst=" << flow.dst_port;
+          break;
+        case IP_TYPE_UDP:
+          cmd << ",udp_src=" << flow.src_port << ",udp_dst=" << flow.dst_port;
+          break;
+        default:
+          break;
+        }
+    }
+}
+
+void
+PartialPathController::AddRules (std::vector<Ptr<Node>> path, Flow flow)
 {
 
   for (auto rit = std::next (path.crbegin ()); rit != path.crend (); ++rit)
@@ -273,12 +344,11 @@ PartialPathController::AddRules (std::vector<Ptr<Node>> path, flow_id_t flow)
       uint32_t out_port = of_dev->GetPortNoConnectedTo (*(rit - 1));
 
       std::stringstream cmd;
+
       // flags OFPFF_SEND_FLOW_REM OFPFF_RESET_COUNTS (0b0101 -> flags=0x0005)
-      cmd << "flow-mod cmd=add,table=0,idle=60,flags=0x0005,prio=1000"
-          << " eth_type=0x800,ip_proto=17"
-          << ",ip_src=" << get<0> (flow) << ",ip_dst=" << get<2> (flow)
-          << ",udp_src=" << get<1> (flow) << ",udp_dst=" << get<3> (flow)
-          << " apply:output=" << out_port;
+      cmd << "flow-mod cmd=add,table=0,idle=60,flags=0x0005,";
+      FlowMatching (cmd, flow);
+      cmd << " apply:output=" << out_port;
       NS_LOG_DEBUG ("[" << dpid << "]: " << cmd.str ());
 
       DpctlExecute (dpid, cmd.str ());
@@ -286,7 +356,7 @@ PartialPathController::AddRules (std::vector<Ptr<Node>> path, flow_id_t flow)
 }
 
 void
-PartialPathController::DelRules (std::set<Ptr<Node>> del_nodes, flow_id_t flow)
+PartialPathController::DelRules (std::set<Ptr<Node>> del_nodes, Flow flow)
 {
   for (auto it = del_nodes.cbegin (); it != std::prev (del_nodes.cend ()); ++it)
     {
@@ -295,9 +365,8 @@ PartialPathController::DelRules (std::set<Ptr<Node>> del_nodes, flow_id_t flow)
 
       std::stringstream cmd;
       // flags OFPFF_SEND_FLOW_REM (0b0001 -> flags=0x0001)
-      cmd << "flow-mod cmd=del,table=0,flags=0x0001"
-          << " eth_type=0x800,ip_proto=17,ip_src=" << get<0> (flow) << ",ip_dst=" << get<2> (flow)
-          << ",udp_src=" << get<1> (flow) << ",udp_dst=" << get<3> (flow);
+      cmd << "flow-mod cmd=del,table=0,flags=0x0001,";
+      FlowMatching (cmd, flow);
 
       NS_LOG_DEBUG ("[" << dpid << "]: " << cmd.str ());
       DpctlExecute (dpid, cmd.str ());
@@ -319,7 +388,7 @@ PartialPathController::HandlePacketIn (struct ofl_msg_packet_in *msg, Ptr<const 
       uint32_t out_port;
 
       Ptr<OFSwitch13Device> of_sw = OFSwitch13Device::GetDevice (swtch->GetDpId ());
-      flow_id_t flow = ExtractFlow ((struct ofl_match *) msg->match);
+      Flow flow = ExtractFlow ((struct ofl_match *) msg->match);
       uint32_t in_port = ExtractInPort ((struct ofl_match *) msg->match);
 
       auto it = m_state.find (flow);
@@ -327,8 +396,17 @@ PartialPathController::HandlePacketIn (struct ofl_msg_packet_in *msg, Ptr<const 
         {
 
           FlexWeightCalc weight_calc;
-          std::vector<Ptr<Node>> path = Topology::DijkstraShortestPath<FlexWeight> (
-              std::get<0> (flow), std::get<2> (flow), weight_calc);
+          std::vector<Ptr<Node>> path;
+          if (flow.eth_type == ETH_TYPE_IP)
+            {
+              path = Topology::DijkstraShortestPath<FlexWeight> (flow.src_ip, flow.dst_ip,
+                                                                 weight_calc);
+            }
+          else
+            {
+              path = Topology::DijkstraShortestPath<FlexWeight> (flow.src_mac, flow.dst_mac,
+                                                                 weight_calc);
+            }
           path.pop_back ();
           path.erase (path.begin ());
 
@@ -385,7 +463,7 @@ PartialPathController::HandleFlowRemoved (struct ofl_msg_flow_removed *msg,
       free (msgStr);
 
       Ptr<Node> node = OFSwitch13Device::GetDevice (swtch->GetDpId ())->GetObject<Node> ();
-      flow_id_t flow = ExtractFlow ((struct ofl_match *) msg->stats->match);
+      Flow flow = ExtractFlow ((struct ofl_match *) msg->stats->match);
       m_sw_rm_apps[node].erase (flow);
       m_state.erase (flow);
     }
@@ -408,12 +486,12 @@ PartialPathController::Balancer (void)
   for (const auto &kv : m_sw_rm_apps)
     {
       Ptr<Node> node = kv.first;
-      std::set<flow_id_t> flows_rm = kv.second;
+      std::set<Flow> flows_rm = kv.second;
 
       FlexWeight weight = weight_calc.GetWeight (node->GetId ());
       if (weight.GetValue () == -1 && flows_rm.size ())
         {
-          for (flow_id_t flow : flows_rm)
+          for (Flow flow : flows_rm)
             {
               std::vector<Ptr<Node>> old_path = m_state.at (flow);
               auto path_it = std::find (old_path.crbegin (), old_path.crend (), node);
