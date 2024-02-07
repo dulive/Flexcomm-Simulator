@@ -1,10 +1,8 @@
-#include "flex-puller.h"
 #include "ns3/ipv4.h"
 #include "ns3/log.h"
 #include "ns3/mac48-address.h"
 #include "ns3/node-container.h"
 #include "ns3/node-list.h"
-#include "ns3/nstime.h"
 #include "ns3/object-base.h"
 #include "ns3/ofswitch13-device.h"
 #include "ofl-packets.h"
@@ -95,18 +93,13 @@ FlexWeight::operator== (const FlexWeight &b) const
 
 /* ########## FlexWeightCalc ########## */
 
-FlexWeightCalc::FlexWeightCalc () : unwanted (), weights ()
+FlexWeightCalc::FlexWeightCalc (EnergyCalculator &calc) : weights ()
 {
-  CalculateWeights ();
-}
-
-FlexWeightCalc::FlexWeightCalc (std::set<uint32_t> unwanted) : unwanted (unwanted), weights ()
-{
-  CalculateWeights ();
+  CalculateWeights (calc);
 }
 
 void
-FlexWeightCalc::CalculateWeights ()
+FlexWeightCalc::CalculateWeights (EnergyCalculator &calc)
 {
   auto node_container = NodeContainer::GetGlobal ();
   for (auto it = node_container.Begin (); it != node_container.End (); ++it)
@@ -120,7 +113,7 @@ FlexWeightCalc::CalculateWeights ()
         {
           Ptr<OFSwitch13Device> of_sw = (*it)->GetObject<OFSwitch13Device> ();
           uint64_t dpid = of_sw->GetDpId ();
-          double flex = FlexPuller::GetRealFlex (dpid);
+          double flex = calc.GetRealFlex (dpid);
           weights.insert ({node_id, FlexWeight (of_sw->GetCpuUsage (), flex < 0 ? 1 : 0)});
         }
     }
@@ -142,9 +135,6 @@ FlexWeightCalc::GetNonViableWeight () const
 FlexWeight
 FlexWeightCalc::GetWeight (Edge &e) const
 {
-  if (unwanted.find (e.second) != unwanted.end ())
-    return GetNonViableWeight ();
-
   FlexWeight weight1 = weights.at (e.first);
   FlexWeight weight2 = weights.at (e.second);
 
@@ -158,18 +148,11 @@ FlexWeightCalc::GetWeight (uint32_t node) const
   return weights.at (node);
 }
 
-void
-FlexWeightCalc::SetUnwanted (std::set<uint32_t> unwanted)
-{
-  this->unwanted = unwanted;
-}
-
 /* ########## PartialPathController ########## */
 
-PartialPathController::PartialPathController () : m_state (), m_sw_rm_apps ()
+PartialPathController::PartialPathController () : m_state (), m_energy_calculator ()
 {
   NS_LOG_FUNCTION (this);
-  Simulator::Schedule (Minutes (3), &PartialPathController::Balancer, this);
 }
 
 PartialPathController::~PartialPathController ()
@@ -226,8 +209,6 @@ PartialPathController::HandshakeSuccessful (Ptr<const RemoteSwitch> swtch)
           DpctlExecute (dpid, cmd.str ());
         }
     }
-
-  FlexPuller::InnitNode (dpid);
 }
 
 Flow
@@ -355,24 +336,6 @@ PartialPathController::AddRules (std::vector<Ptr<Node>> path, Flow flow)
     }
 }
 
-void
-PartialPathController::DelRules (std::set<Ptr<Node>> del_nodes, Flow flow)
-{
-  for (auto it = del_nodes.cbegin (); it != std::prev (del_nodes.cend ()); ++it)
-    {
-      Ptr<OFSwitch13Device> of_dev = (*it)->GetObject<OFSwitch13Device> ();
-      uint64_t dpid = of_dev->GetDpId ();
-
-      std::stringstream cmd;
-      // flags OFPFF_SEND_FLOW_REM (0b0001 -> flags=0x0001)
-      cmd << "flow-mod cmd=del,table=0,flags=0x0001,";
-      FlowMatching (cmd, flow);
-
-      NS_LOG_DEBUG ("[" << dpid << "]: " << cmd.str ());
-      DpctlExecute (dpid, cmd.str ());
-    }
-}
-
 ofl_err
 PartialPathController::HandlePacketIn (struct ofl_msg_packet_in *msg, Ptr<const RemoteSwitch> swtch,
                                        uint32_t xid)
@@ -395,7 +358,7 @@ PartialPathController::HandlePacketIn (struct ofl_msg_packet_in *msg, Ptr<const 
       if (it == m_state.end ())
         {
 
-          FlexWeightCalc weight_calc;
+          FlexWeightCalc weight_calc (m_energy_calculator);
           std::vector<Ptr<Node>> path;
           if (flow.eth_type == ETH_TYPE_IP)
             {
@@ -414,10 +377,6 @@ PartialPathController::HandlePacketIn (struct ofl_msg_packet_in *msg, Ptr<const 
 
           m_state[flow] = path;
 
-          for (auto it = std::next (path.cbegin ()); it != std::prev (path.cend ()); ++it)
-            {
-              m_sw_rm_apps[*it].insert (flow);
-            }
           out_port = of_sw->GetPortNoConnectedTo (path[1]);
         }
       else
@@ -464,91 +423,10 @@ PartialPathController::HandleFlowRemoved (struct ofl_msg_flow_removed *msg,
 
       Ptr<Node> node = OFSwitch13Device::GetDevice (swtch->GetDpId ())->GetObject<Node> ();
       Flow flow = ExtractFlow ((struct ofl_match *) msg->stats->match);
-      m_sw_rm_apps[node].erase (flow);
       m_state.erase (flow);
     }
   ofl_msg_free_flow_removed (msg, true, 0);
   return 0;
-}
-
-void
-PartialPathController::Balancer (void)
-{
-  NS_LOG_FUNCTION (this);
-
-  FlexPuller::UpdateReadings ();
-  FlexWeightCalc weight_calc;
-  auto respects_flex = [&weight_calc] (Ptr<Node> node) {
-    FlexWeight weight = weight_calc.GetWeight (node->GetId ());
-    return weight.GetValue () != -1;
-  };
-
-  for (const auto &kv : m_sw_rm_apps)
-    {
-      Ptr<Node> node = kv.first;
-      std::set<Flow> flows_rm = kv.second;
-
-      FlexWeight weight = weight_calc.GetWeight (node->GetId ());
-      if (weight.GetValue () == -1 && flows_rm.size ())
-        {
-          for (Flow flow : flows_rm)
-            {
-              std::vector<Ptr<Node>> old_path = m_state.at (flow);
-              auto path_it = std::find (old_path.crbegin (), old_path.crend (), node);
-
-              auto src_it =
-                  std::find_if (std::next (path_it), std::prev (old_path.crend ()), respects_flex);
-              auto dst_it =
-                  std::find_if (path_it.base (), std::prev (old_path.cend ()), respects_flex);
-
-              std::set<uint32_t> unwanted;
-              std::transform (std::next (src_it), old_path.crend (),
-                              std::inserter (unwanted, unwanted.begin ()),
-                              [] (Ptr<Node> node) { return node->GetId (); });
-              std::transform (std::next (dst_it), old_path.cend (),
-                              std::inserter (unwanted, unwanted.begin ()),
-                              [] (Ptr<Node> node) { return node->GetId (); });
-
-              weight_calc.SetUnwanted (unwanted);
-              std::vector<Ptr<Node>> new_path =
-                  Topology::DijkstraShortestPath (*src_it, *dst_it, weight_calc);
-
-              std::vector<Ptr<Node>> old_part (std::prev (src_it.base ()), std::next (dst_it));
-              if (new_path == old_part)
-                {
-                  continue;
-                }
-
-              AddRules (new_path, flow);
-              for (const Ptr<Node> &node : new_path)
-                m_sw_rm_apps[node].insert (flow);
-
-              std::set<Ptr<Node>> old_part_set (old_part.cbegin (), old_part.cend ());
-              std::set<Ptr<Node>> new_path_set (new_path.cbegin (), new_path.cend ());
-              std::set<Ptr<Node>> intersection;
-
-              std::set_difference (old_part_set.cbegin (), old_part_set.cend (),
-                                   new_path_set.cbegin (), new_path_set.cend (),
-                                   std::inserter (intersection, intersection.begin ()));
-
-              DelRules (intersection, flow);
-              for (Ptr<Node> node : intersection)
-                m_sw_rm_apps[node].erase (flow);
-
-              std::size_t size = old_path.size () - old_part.size () + new_path.size ();
-
-              std::vector<Ptr<Node>> complete_path;
-              complete_path.reserve (size);
-              complete_path.insert (complete_path.end (), old_path.cbegin (),
-                                    std::prev (src_it.base ()));
-              complete_path.insert (complete_path.end (), new_path.cbegin (), new_path.cend ());
-              complete_path.insert (complete_path.end (), std::next (dst_it), old_path.cend ());
-
-              m_state[flow] = complete_path;
-            }
-        }
-    }
-  Simulator::Schedule (Minutes (3), &PartialPathController::Balancer, this);
 }
 
 } // namespace ns3

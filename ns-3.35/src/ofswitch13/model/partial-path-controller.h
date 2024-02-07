@@ -1,6 +1,7 @@
 #ifndef PARTIAL_PATH_CONTROLLER_H
 #define PARTIAL_PATH_CONTROLLER_H
 
+#include "energy-calculator.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/mac48-address.h"
 #include "ns3/ofswitch13-controller.h"
@@ -95,21 +96,17 @@ public:
 class FlexWeightCalc : public WeightCalc<FlexWeight>
 {
 private:
-  std::set<uint32_t> unwanted;
   std::unordered_map<uint32_t, const FlexWeight> weights;
 
-  void CalculateWeights (void);
+  void CalculateWeights (EnergyCalculator &calc);
 
 public:
-  FlexWeightCalc ();
-  FlexWeightCalc (std::set<uint32_t>);
+  FlexWeightCalc (EnergyCalculator &calc);
 
   FlexWeight GetInitialWeight () const override;
   FlexWeight GetNonViableWeight () const override;
   FlexWeight GetWeight (Edge &) const override;
   FlexWeight GetWeight (uint32_t node) const;
-
-  void SetUnwanted (std::set<uint32_t>);
 };
 
 class PartialPathController : public OFSwitch13Controller
@@ -138,17 +135,13 @@ protected:
 
 private:
   std::unordered_map<Flow, std::vector<Ptr<Node>>, hash_fn> m_state;
-  // add comparator
-  std::map<Ptr<Node>, std::set<Flow>> m_sw_rm_apps;
+  EnergyCalculator m_energy_calculator;
 
   Flow ExtractFlow (struct ofl_match *match);
   uint32_t ExtractInPort (struct ofl_match *match);
 
   void FlowMatching (std::stringstream &cmd, Flow flow);
   void AddRules (std::vector<Ptr<Node>> path, Flow flow);
-  void DelRules (std::set<Ptr<Node>> del_nodes, Flow flow);
-
-  void Balancer (void);
 };
 
 } // namespace ns3
