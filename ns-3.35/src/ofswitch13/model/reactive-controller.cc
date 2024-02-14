@@ -4,7 +4,7 @@
 #include "ns3/mac48-address.h"
 #include "ns3/ofswitch13-device.h"
 #include "ns3/topology.h"
-#include <boost/container_hash/hash_fwd.hpp>
+#include <boost/functional/hash.hpp>
 
 NS_LOG_COMPONENT_DEFINE ("ReactiveController");
 
