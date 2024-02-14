@@ -158,16 +158,7 @@ std::vector<Ptr<Node>>
 ReactiveFlexController::CalculatePath (Flow flow)
 {
   FlexWeightCalc weight_calc (m_energy_calculator);
-  std::vector<Ptr<Node>> path;
-  if (flow.eth_type == ETH_TYPE_IP)
-    {
-      path = Topology::DijkstraShortestPath<FlexWeight> (flow.src_ip, flow.dst_ip, weight_calc);
-    }
-  else
-    {
-      path = Topology::DijkstraShortestPath<FlexWeight> (flow.src_mac, flow.dst_mac, weight_calc);
-    }
-  return path;
+  return Topology::DijkstraShortestPath<FlexWeight> (flow.src_ip, flow.dst_ip, weight_calc);
 }
 
 } // namespace ns3

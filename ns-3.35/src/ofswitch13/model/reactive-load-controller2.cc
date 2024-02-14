@@ -91,16 +91,7 @@ std::vector<Ptr<Node>>
 ReactiveLoadController2::CalculatePath (Flow flow)
 {
   UIntWeightCalc weight_calc;
-  std::vector<Ptr<Node>> path;
-  if (flow.eth_type == ETH_TYPE_IP)
-    {
-      path = Topology::DijkstraShortestPath<uint64_t> (flow.src_ip, flow.dst_ip, weight_calc);
-    }
-  else
-    {
-      path = Topology::DijkstraShortestPath<uint64_t> (flow.src_mac, flow.dst_mac, weight_calc);
-    }
-  return path;
+  return Topology::DijkstraShortestPath<uint64_t> (flow.src_ip, flow.dst_ip, weight_calc);
 }
 
 } // namespace ns3

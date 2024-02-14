@@ -1,7 +1,6 @@
 #include "reactive-controller.h"
 #include "ns3/ipv4.h"
 #include "ns3/log.h"
-#include "ns3/mac48-address.h"
 #include "ns3/ofswitch13-device.h"
 #include "ns3/topology.h"
 #include <boost/functional/hash.hpp>
@@ -15,16 +14,14 @@ NS_OBJECT_ENSURE_REGISTERED (ReactiveController);
 bool
 Flow::operator== (const Flow &flow) const
 {
-  return src_mac == flow.src_mac && dst_mac == flow.dst_mac && eth_type == flow.eth_type &&
-         src_ip == flow.src_ip && dst_ip == flow.dst_ip && ip_proto == flow.ip_proto &&
+  return src_ip == flow.src_ip && dst_ip == flow.dst_ip && ip_proto == flow.ip_proto &&
          src_port == flow.src_port && dst_port == flow.dst_port;
 }
 
 bool
 Flow::operator< (const Flow &flow) const
 {
-  return src_mac < flow.src_mac && dst_mac < flow.dst_mac && eth_type < flow.eth_type &&
-         src_ip < flow.src_ip && dst_ip < flow.dst_ip && ip_proto < flow.ip_proto &&
+  return src_ip < flow.src_ip && dst_ip < flow.dst_ip && ip_proto < flow.ip_proto &&
          src_port < flow.src_port && dst_port < flow.dst_port;
 }
 
@@ -32,21 +29,12 @@ std::size_t
 Flow::hash_fn::operator() (const Flow &flow) const
 {
   std::size_t seed = 0;
-  uint8_t buffer[6];
-  flow.src_mac.CopyTo (buffer);
-  boost::hash_combine (seed, buffer);
-  flow.dst_mac.CopyTo (buffer);
-  boost::hash_combine (seed, buffer);
-  boost::hash_combine (seed, flow.eth_type);
-
   boost::hash_combine (seed, flow.src_ip.Get ());
   boost::hash_combine (seed, flow.dst_ip.Get ());
   boost::hash_combine (seed, flow.ip_proto);
 
   boost::hash_combine (seed, flow.src_port);
   boost::hash_combine (seed, flow.dst_port);
-
-  boost::hash_combine (seed, flow.priority);
 
   return seed;
 }
@@ -84,60 +72,39 @@ ReactiveController::ExtractFlow (struct ofl_match *match)
 {
   Flow flow;
   struct ofl_match_tlv *tlv;
-  tlv = oxm_match_lookup (OXM_OF_ETH_TYPE, match);
-  memcpy (&flow.eth_type, tlv->value, OXM_LENGTH (OXM_OF_ETH_TYPE));
 
-  flow.priority = 500;
+  uint32_t ip;
+  tlv = oxm_match_lookup (OXM_OF_IPV4_SRC, match);
+  memcpy (&ip, tlv->value, OXM_LENGTH (OXM_OF_IPV4_SRC));
+  flow.src_ip = Ipv4Address (ntohl (ip));
 
-  if (flow.eth_type == ETH_TYPE_IP)
+  tlv = oxm_match_lookup (OXM_OF_IPV4_DST, match);
+  memcpy (&ip, tlv->value, OXM_LENGTH (OXM_OF_IPV4_DST));
+  flow.dst_ip = Ipv4Address (ntohl (ip));
+
+  tlv = oxm_match_lookup (OXM_OF_IP_PROTO, match);
+  memcpy (&flow.ip_proto, tlv->value, OXM_LENGTH (OXM_OF_IP_PROTO));
+
+  switch (flow.ip_proto)
     {
-      uint32_t ip;
-      tlv = oxm_match_lookup (OXM_OF_IPV4_SRC, match);
-      memcpy (&ip, tlv->value, OXM_LENGTH (OXM_OF_IPV4_SRC));
-      flow.src_ip = Ipv4Address (ntohl (ip));
+    case IP_TYPE_TCP:
+      tlv = oxm_match_lookup (OXM_OF_TCP_SRC, match);
+      memcpy (&flow.src_port, tlv->value, OXM_LENGTH (OXM_OF_TCP_SRC));
 
-      tlv = oxm_match_lookup (OXM_OF_IPV4_DST, match);
-      memcpy (&ip, tlv->value, OXM_LENGTH (OXM_OF_IPV4_DST));
-      flow.dst_ip = Ipv4Address (ntohl (ip));
+      tlv = oxm_match_lookup (OXM_OF_TCP_DST, match);
+      memcpy (&flow.dst_port, tlv->value, OXM_LENGTH (OXM_OF_TCP_DST));
 
-      tlv = oxm_match_lookup (OXM_OF_IP_PROTO, match);
-      memcpy (&flow.ip_proto, tlv->value, OXM_LENGTH (OXM_OF_IP_PROTO));
+      break;
+    case IP_TYPE_UDP:
+      tlv = oxm_match_lookup (OXM_OF_UDP_SRC, match);
+      memcpy (&flow.src_port, tlv->value, OXM_LENGTH (OXM_OF_UDP_SRC));
 
-      flow.priority += 500;
+      tlv = oxm_match_lookup (OXM_OF_UDP_DST, match);
+      memcpy (&flow.dst_port, tlv->value, OXM_LENGTH (OXM_OF_UDP_DST));
 
-      switch (flow.ip_proto)
-        {
-        case IP_TYPE_TCP:
-          tlv = oxm_match_lookup (OXM_OF_TCP_SRC, match);
-          memcpy (&flow.src_port, tlv->value, OXM_LENGTH (OXM_OF_TCP_SRC));
-
-          tlv = oxm_match_lookup (OXM_OF_TCP_DST, match);
-          memcpy (&flow.dst_port, tlv->value, OXM_LENGTH (OXM_OF_TCP_DST));
-
-          flow.priority += 500;
-          break;
-        case IP_TYPE_UDP:
-          tlv = oxm_match_lookup (OXM_OF_UDP_SRC, match);
-          memcpy (&flow.src_port, tlv->value, OXM_LENGTH (OXM_OF_UDP_SRC));
-
-          tlv = oxm_match_lookup (OXM_OF_UDP_DST, match);
-          memcpy (&flow.dst_port, tlv->value, OXM_LENGTH (OXM_OF_UDP_DST));
-
-          flow.priority += 500;
-          break;
-        default:
-          break;
-        }
-    }
-  else
-    {
-      flow.src_mac = Mac48Address ();
-      tlv = oxm_match_lookup (OXM_OF_ETH_SRC, match);
-      flow.src_mac.CopyFrom (tlv->value);
-
-      flow.dst_mac = Mac48Address ();
-      tlv = oxm_match_lookup (OXM_OF_ETH_DST, match);
-      flow.dst_mac.CopyFrom (tlv->value);
+      break;
+    default:
+      break;
     }
 
   return flow;
@@ -158,27 +125,17 @@ ReactiveController::ExtractInPort (struct ofl_match *match)
 void
 ReactiveController::FlowMatching (std::stringstream &cmd, Flow flow)
 {
-  cmd << "prio=" << flow.priority;
-  if (flow.eth_type != ETH_TYPE_IP)
+  cmd << "ip_proto=" << flow.ip_proto << ",ip_src=" << flow.src_ip << ",ip_dst=" << flow.dst_ip;
+  switch (flow.ip_proto)
     {
-      cmd << ",eth_dst=" << flow.dst_mac << ",eth_src=" << flow.src_mac
-          << ",eth_type=" << flow.eth_type;
-    }
-  else
-    {
-      cmd << ",eth_type=" << flow.eth_type << ",ip_proto=" << flow.ip_proto
-          << ",ip_src=" << flow.src_ip << ",ip_dst=" << flow.dst_ip;
-      switch (flow.ip_proto)
-        {
-        case IP_TYPE_TCP:
-          cmd << ",tcp_src=" << flow.src_port << ",tcp_dst=" << flow.dst_port;
-          break;
-        case IP_TYPE_UDP:
-          cmd << ",udp_src=" << flow.src_port << ",udp_dst=" << flow.dst_port;
-          break;
-        default:
-          break;
-        }
+    case IP_TYPE_TCP:
+      cmd << ",tcp_src=" << flow.src_port << ",tcp_dst=" << flow.dst_port;
+      break;
+    case IP_TYPE_UDP:
+      cmd << ",udp_src=" << flow.src_port << ",udp_dst=" << flow.dst_port;
+      break;
+    default:
+      break;
     }
 }
 
@@ -194,7 +151,7 @@ ReactiveController::AddRules (std::vector<Ptr<Node>> path, Flow flow)
       std::stringstream cmd;
 
       // flags OFPFF_SEND_FLOW_REM OFPFF_RESET_COUNTS (0b0101 -> flags=0x0005)
-      cmd << "flow-mod cmd=add,table=0,idle=60,flags=0x0005,";
+      cmd << "flow-mod cmd=add,table=0,idle=60,flags=0x0005 eth_type=0x800,";
       FlowMatching (cmd, flow);
       cmd << " apply:output=" << out_port;
       NS_LOG_DEBUG ("[" << dpid << "]: " << cmd.str ());
@@ -206,16 +163,7 @@ ReactiveController::AddRules (std::vector<Ptr<Node>> path, Flow flow)
 std::vector<Ptr<Node>>
 ReactiveController::CalculatePath (Flow flow)
 {
-  std::vector<Ptr<Node>> path;
-  if (flow.eth_type == ETH_TYPE_IP)
-    {
-      path = Topology::DijkstraShortestPath (flow.src_ip, flow.dst_ip);
-    }
-  else
-    {
-      path = Topology::DijkstraShortestPath (flow.src_mac, flow.dst_mac);
-    }
-  return path;
+  return Topology::DijkstraShortestPath (flow.src_ip, flow.dst_ip);
 }
 
 void
@@ -241,17 +189,8 @@ ReactiveController::HandshakeSuccessful (Ptr<const RemoteSwitch> swtch)
         {
           std::ostringstream cmd;
 
-          // flags OFPFF_RESET_COUNTS (0b0100 -> flags=0x0004)
-          Mac48Address mac = Mac48Address::ConvertFrom ((*it)->GetDevice (0)->GetAddress ());
-          cmd << "flow-mod cmd=add,table=0,flags=0x0004,prio=500,eth_dst=" << mac
-              << " apply:output=" << out_port;
-
-          NS_LOG_DEBUG ("[" << dpid << "]: " << cmd.str ());
-
-          DpctlExecute (dpid, cmd.str ());
-          cmd.clear ();
-
           Ipv4Address ip = (*it)->GetObject<Ipv4> ()->GetAddress (1, 0).GetLocal ();
+          // flags OFPFF_RESET_COUNTS (0b0100 -> flags=0x0004)
           cmd << "flow-mod cmd=add,table=0,flags=0x0004 eth_type=0x800,ip_dst=" << ip
               << " apply:output=" << out_port;
 

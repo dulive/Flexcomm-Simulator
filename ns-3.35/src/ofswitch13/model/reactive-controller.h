@@ -6,18 +6,12 @@ namespace ns3 {
 
 struct Flow
 {
-  Mac48Address src_mac;
-  Mac48Address dst_mac;
-  uint16_t eth_type = 0;
-
   Ipv4Address src_ip;
   Ipv4Address dst_ip;
   uint16_t ip_proto = 0;
 
   uint16_t src_port = 0;
   uint16_t dst_port = 0;
-
-  uint16_t priority = 0;
 
   bool operator== (const Flow &) const;
 
