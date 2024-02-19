@@ -35,7 +35,7 @@ recursive_ren_norm() {
 		done
 	elif [[ -f "${1}" ]]; then
 		for alg in "${ALGS[@]}"; do
-			python "${DIR}/normalize_ren_prod.py" -a "${ESTI_DIR}/${alg}_estimate.json" -p "${1}" -o "${alg}_based"
+			python3 "${DIR}/normalize_ren_prod.py" -a "${ESTI_DIR}/${alg}_estimate.json" -p "${1}" -o "${alg}_based"
 		done
 	else
 		echo "Invalid production ${1}" 1>&2
@@ -46,15 +46,15 @@ recursive_ren_flex() {
 	if [[ -d "${1}" ]]; then
 		dir_name="$(basename "${1}")"
 		mkdir -p "${dir_name}"
-		pushd "${dir_name}" || return
+		pushd "${dir_name}" >/dev/null || return
 		for prod in "${1}"/*; do
-			recursive_ren_flex "${prod}"
+			recursive_ren_flex "${prod}" "${2}"
 		done
-		popd || exit
+		popd >/dev/null || exit
 	elif [[ -f "${1}" ]]; then
 		file_name="$(basename "${1}")"
 		flex_name="${file_name%%_prod.json}"
-		python "${DIR}/gen_flex.py" "${1}" "${ESTI_DIR}/${2}_estimate.json" -o "${flex_name}_flex.json"
+		python3 "${DIR}/gen_flex.py" "${1}" "${ESTI_DIR}/${2}_estimate.json" -o "${flex_name}_flex.json"
 	else
 		echo "Invalid production ${1}" 1>&2
 	fi
@@ -62,9 +62,11 @@ recursive_ren_flex() {
 
 ren_flex() {
 	mkdir -p "${1}_estimate"
-	pushd "${1}_estimate" || return
-	recursive_ren_flex "${PROD_DIR}" "${1}"
-	popd || exit
+	pushd "${1}_estimate" >/dev/null || return
+	for prod in "${PROD_DIR}"/*; do
+		recursive_ren_flex "${prod}" "${1}"
+	done
+	popd >/dev/null || exit
 }
 
 mkdir -p "${PROD_DIR}"
@@ -83,7 +85,7 @@ mkdir -p "${FLEX_DIR}"
 (
 	cd "${FLEX_DIR}" || exit
 	for alg in "${ALGS[@]:1}"; do
-		python "${DIR}/gen_flex.py" "${ESTI_DIR}/${alg}_estimate.json" "${ESTI_DIR}/SimpleController_estimate.json" -o "${alg}_flex.json"
+		python3 "${DIR}/gen_flex.py" "${ESTI_DIR}/${alg}_estimate.json" "${ESTI_DIR}/SimpleController_estimate.json" -o "${alg}_flex.json"
 	done
 
 	mkdir -p "ren_normalized"

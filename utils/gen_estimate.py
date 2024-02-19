@@ -24,12 +24,12 @@ def main():
 
         for row in data:
             node = row[1]
-            if row[0] == "0.0":
+            if row[0] == "0":
                 values[node] = []
                 last_power_drawn[node] = 0
-            elif (float(row[0]) % 900) == 899:
+            elif (int(row[0]) % 900) == 899:
                 power_drawn = float(row[3])
-                values[node].append(float(power_drawn - last_power_drawn[node]))
+                values[node].append(power_drawn - last_power_drawn[node])
                 last_power_drawn[node] = power_drawn
 
     with open(args.output, "w") as out:

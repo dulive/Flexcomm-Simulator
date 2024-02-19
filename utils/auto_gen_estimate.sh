@@ -13,7 +13,7 @@ mkdir -p "${ESTI_DIR}"
 	for alg in "${ALGS[@]}"; do
 		dir="${OUT_DIR}/${alg}"
 		if [[ -d "${dir}" ]]; then
-			python "${DIR}/gen_estimate.py" "${dir}/ecofen-trace.csv" -o "${alg}_estimate.json"
+			python3 "${DIR}/gen_estimate.py" "${dir}/ecofen-trace.csv" -o "${alg}_estimate.json"
 		fi
 	done
 )

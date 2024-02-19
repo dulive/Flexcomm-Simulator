@@ -107,7 +107,7 @@ def grouped_prod(
                 )
             ),
         )
-        for sw in groups_ranges["solar"]
+        for sw in groups_ranges["solar_group"]
     }
     eolic_prod = {
         sw: normalize(

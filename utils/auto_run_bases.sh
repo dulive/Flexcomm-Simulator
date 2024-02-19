@@ -10,5 +10,5 @@ for alg in "${ALGS[@]}"; do
 
 	mkdir -p "${OUT_DIR}/${alg}"
 
-	mv "${OUT_DIR}"/* "${OUT_DIR}/${alg}"
+	mv "${OUT_DIR}"/*.* "${OUT_DIR}/${alg}"
 done

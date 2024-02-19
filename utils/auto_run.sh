@@ -7,11 +7,11 @@ while [[ ${#} -gt 0 ]]; do
 		shift 2
 		;;
 	-f | --flex-files)
-		FLEX_FILES+=("$(realpath "${2}")")
+		FLEXES+=("${2}")
 		shift 2
 		;;
 	-e | --esti-files)
-		FLEX_FILES+=("$(realpath "${2}")")
+		ESTIS+=("${2}")
 		shift 2
 		;;
 	-a | --algorithms)
@@ -51,7 +51,7 @@ recursive_flex_run() {
 		make run TOPO="${TOPO}" CONTROLLER="ns3::${1}" FLEXFILE="flex_files/${3}" ESTIFILE="estimate_files/${2}"
 		dir_name="${OUT_DIR}/${1}/${2%%.json}/${3%%.json}"
 		mkdir -p "${dir_name}"
-		mv "${OUT_DIR}"/* "${dir_name}"
+		mv "${OUT_DIR}"/*.* "${dir_name}"
 	else
 		echo "Invalid flex ${3}" 1>&2
 	fi
