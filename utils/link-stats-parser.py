@@ -53,6 +53,7 @@ def draw_plot(title, x, y, ylabel):
 def read_file(file_path, drawPlot):
     with open(file_path) as file:
         data = csv.reader(file, delimiter=";")
+        data = list(data)[1:]
 
         x = SortedSet()
         y_usage = {}
