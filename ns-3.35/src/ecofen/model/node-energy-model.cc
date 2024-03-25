@@ -61,7 +61,7 @@ NodeEnergyModel::GetNodeState (void) const
 void
 NodeEnergyModel::SetNodeState (uint32_t nodeState)
 {
-  //NS_LOG_FUNCTION (this << nodeState);
+  // NS_LOG_FUNCTION (this << nodeState);
   m_nodeState = nodeState;
 }
 
@@ -108,12 +108,12 @@ NodeEnergyModel::GetPowerConsumption (void)
   return 0.0;
 }
 
-//TODO à modifier pour obtenir un fichier de traces avec les consos
+// TODO à modifier pour obtenir un fichier de traces avec les consos
 double
 NodeEnergyModel::GetTotalPowerConsumption (Ptr<Node> node)
 {
   double conso = 0;
-  conso = GetPowerConsumption (); //chassis consumption
+  conso = GetPowerConsumption (); // chassis consumption
   if (conso < 0)
     {
       NS_LOG_UNCOND ("AAA! Negative chassis conso of node " << node->GetId ());
@@ -124,7 +124,7 @@ NodeEnergyModel::GetTotalPowerConsumption (Ptr<Node> node)
     {
       Ptr<NetDevice> dev = node->GetDevice (i);
       Ptr<NetdeviceEnergyModel> edev = dev->GetObject<NetdeviceEnergyModel> ();
-      //NS_LOG_UNCOND ("NetDev " << i);
+      // NS_LOG_UNCOND ("NetDev " << i);
       if ((edev != NULL) && (dev->GetInstanceTypeId ().GetName () != "ns3::LoopbackNetDevice"))
         {
           double temp = edev->GetPowerConsumption (); // consumption of the net devices
@@ -154,8 +154,8 @@ NodeEnergyModel::LogTotalPowerConsumption (Ptr<Node> node, Ptr<OutputStreamWrapp
   std::string nodeName = Names::FindName (node);
 
   std::ostream *stream = streamWrapper->GetStream ();
-  *stream << Simulator::Now ().GetSeconds () << ";" << nodeName << ";" << m_lastConso << ";"
-          << m_powerDrawn << "\n";
+  *stream << std::fixed << Simulator::Now ().GetSeconds () << ";" << nodeName << ";" << m_lastConso
+          << ";" << m_powerDrawn << "\n";
 }
 
 void

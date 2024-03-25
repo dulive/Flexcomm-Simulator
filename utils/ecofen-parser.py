@@ -76,6 +76,7 @@ def draw_plots(title, x, y, ylabel):
 def read_file(file_path, drawPlot):
     with open(file_path) as file:
         data = csv.reader(file, delimiter=";")
+        data = list(data)[1:]
 
         # Parse File
         x = SortedSet()
