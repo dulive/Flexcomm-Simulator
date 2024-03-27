@@ -1,5 +1,5 @@
 import argparse
-import csv
+import pandas as pd
 import json
 from pathlib import Path
 
@@ -26,9 +26,9 @@ def calculate_range(values):
 def load_ren_prod(prod):
     ren_data = {}
     with open(prod, "r") as csv_file:
-        reader = csv.reader(csv_file, delimiter=";")
-        for date_hour, hydro, eolic, solar, bio, waves, *_ in list(reader)[3:]:
-            date = date_hour.split(" ")[0]
+        data = pd.read_csv(csv_file, sep=";", skiprows=2)
+        for _, row in data.iterrows():
+            date = row["Data e Hora"].split(" ")[0]
 
             if date not in ren_data:
                 ren_data[date] = {
@@ -42,17 +42,21 @@ def load_ren_prod(prod):
                     "renewable": [],
                 }
 
-            ren_data[date]["hydro"].append(float(hydro))
-            ren_data[date]["eolic"].append(float(eolic))
-            ren_data[date]["solar"].append(float(solar))
-            ren_data[date]["hydro_eolic"].append(float(hydro) + float(eolic))
-            ren_data[date]["hydro_solar"].append(float(hydro) + float(solar))
-            ren_data[date]["eolic_solar"].append(float(eolic) + float(solar))
+            ren_data[date]["hydro"].append(row["Hídrica"])
+            ren_data[date]["eolic"].append(row["Eólica"])
+            ren_data[date]["solar"].append(row["Solar"])
+            ren_data[date]["hydro_eolic"].append(row["Hídrica"] + row["Eólica"])
+            ren_data[date]["hydro_solar"].append(row["Hídrica"] + row["Solar"])
+            ren_data[date]["eolic_solar"].append(row["Eólica"] + row["Solar"])
             ren_data[date]["hydro_eolic_solar"].append(
-                float(hydro) + float(eolic) + float(solar)
+                row["Hídrica"] + row["Eólica"] + row["Solar"]
             )
             ren_data[date]["renewable"].append(
-                float(hydro) + float(eolic) + float(solar) + float(bio) + float(waves)
+                row["Hídrica"]
+                + row["Eólica"]
+                + row["Solar"]
+                + row["Biomassa"]
+                + row["Ondas"]
             )
 
     return ren_data

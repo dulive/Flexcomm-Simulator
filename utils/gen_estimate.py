@@ -2,7 +2,7 @@
 
 import argparse
 import json
-import csv
+import pandas as pd
 
 
 def parse_args():
@@ -20,17 +20,17 @@ def main():
     last_power_drawn = {}
 
     with open(args.trace, "r") as trace:
-        data = csv.reader(trace, delimiter=";")
+        data = pd.read_csv(trace, sep=";")
 
-        for row in data:
-            node = row[1]
-            if row[0] == "0":
-                values[node] = []
-                last_power_drawn[node] = 0
-            elif (int(row[0]) % 900) == 899:
-                power_drawn = float(row[3])
-                values[node].append(power_drawn - last_power_drawn[node])
-                last_power_drawn[node] = power_drawn
+        for _, row in data.iterrows():
+            if row["Time"] == 0:
+                values[row["NodeName"]] = []
+                last_power_drawn[row["NodeName"]] = 0
+            elif (row["Time"] % 900) == 899:
+                values[row["NodeName"]].append(
+                    row["PowerDrawn"] - last_power_drawn[row["NodeName"]]
+                )
+                last_power_drawn[row["NodeName"]] = row["PowerDrawn"]
 
     with open(args.output, "w") as out:
         json.dump(values, out, indent=4)
