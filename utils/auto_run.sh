@@ -53,8 +53,8 @@ SERVER="$(realpath "${DIR}/../ns-3.35/utils/energy-api-server.py")"
 
 recursive_flex_run() {
 	if [[ -d "${FLEX_DIR}/${3}" ]]; then
-		for flex_file in "${3}"/*; do
-			flex="${flex_file##"${FLEX_DIR}*(/)"}"
+		for flex_file in "${FLEX_DIR}/${3}"/*; do
+			flex="${flex_file##"${FLEX_DIR}/"}"
 			recursive_flex_run "${1}" "${2}" "${flex}"
 		done
 	elif [[ -f "${FLEX_DIR}/${3}" ]]; then
