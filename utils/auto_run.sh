@@ -58,6 +58,7 @@ recursive_flex_run() {
 			recursive_flex_run "${1}" "${2}" "${flex}"
 		done
 	elif [[ -f "${FLEX_DIR}/${3}" ]]; then
+		echo "### Using flex file: ${3}; Using esti file: ${2}"
 		if [[ "${1}" == "External" ]]; then
 			echo "### Starting extenal energy server"
 			${SERVER} -f "${FLEX_DIR}/${3}" -e "${ESTI_DIR}/${2}" &
@@ -66,7 +67,6 @@ recursive_flex_run() {
 		else
 			alg="ns3::${1}"
 		fi
-		echo "### Using flex file: ${3}; Using esti file: ${2}"
 		make run TOPO="${TOPO}" CONTROLLER="${alg}" FLEXFILE="flex_files/${3}" ESTIFILE="estimate_files/${2}"
 		dir_name="${OUT_DIR}/${1}/${2%%.json}/${3%%.json}"
 		mkdir -p "${dir_name}"
