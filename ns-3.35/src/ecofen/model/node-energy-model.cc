@@ -156,8 +156,9 @@ NodeEnergyModel::LogTotalPowerConsumption (Ptr<Node> node, Ptr<OutputStreamWrapp
   std::string nodeName = Names::FindName (node);
 
   std::ostream *stream = streamWrapper->GetStream ();
-  *stream << std::fixed << Simulator::Now ().GetSeconds () << ";" << nodeName << ";" << m_lastConso
-          << "\n";
+  double powerConsumption = GetTotalPowerConsumption (node);
+  *stream << std::fixed << Simulator::Now ().GetSeconds () << ";" << nodeName << ";"
+          << powerConsumption << "\n";
 }
 
 void
