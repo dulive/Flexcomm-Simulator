@@ -2,7 +2,7 @@
 /*
  * The GPLv2 License (GPLv2)
  *
- * Copyright (c) 2023 Rui Pedro C. Monteiro
+ * Copyright (c) 2024 Rui Pedro C. Monteiro
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,30 +15,34 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <http: //www.gnu.org/licenses/>.
  *
  * Author: Rui Pedro C. Monteiro <rui.p.monteiro@inesctec.pt>
  */
-#ifndef PARSER_H
-#define PARSER_H
 
-#include "ns3/core-module.h"
-#include "ns3/netdevice-energy-helper.h"
-#include "ns3/node-energy-helper.h"
+#ifndef ENABLED_PORTS_ENERGY_HELPER_H_
+#define ENABLED_PORTS_ENERGY_HELPER_H_
+
+#include "node-energy-helper.h"
 
 namespace ns3 {
 
-class Parser
+class EnabledPortsEnergyHelper : public NodeEnergyHelper
 {
 public:
-  static void ParseTopology (std::string topoName, std::string estiFile, std::string flexFile,
-                             std::string linkFailuresFile);
+  EnabledPortsEnergyHelper ();
+  ~EnabledPortsEnergyHelper ();
 
-  static std::map<std::string, Ptr<NodeEnergyHelper>> m_chassisTemplates;
-  static std::map<std::string, Ptr<NetdeviceEnergyHelper>> m_interfaceTemplates;
-  static std::map<Ptr<Node>, Ptr<NetdeviceEnergyHelper>> m_interfaceEnergyModels;
+  void SetIdleConsumption (double consumption);
+  void SetPortsConsumptions (std::map<uint64_t, double> values);
+
+protected:
+  virtual Ptr<NodeEnergyModel> DoInstall (Ptr<Node> node) const;
+  ObjectFactory m_enabledPortsEnergyModel;
+  double m_idle;
+  std::map<uint64_t, double> m_values;
 };
 
 } // namespace ns3
 
-#endif /* PARSER_H */
+#endif
