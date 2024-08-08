@@ -237,6 +237,8 @@ def parse_args():
     parser.add_argument("-m", "--max", type=int, required=False)
     parser.add_argument("-t", "--timestep", type=int, required=False)
     parser.add_argument("-r", "--ratio", type=int, required=False, default=1)
+    parser.add_argument("-s", "--start", type=int, required=False)
+    parser.add_argument("-e", "--end", type=int, required=False)
 
     return parser.parse_args()
 
@@ -291,12 +293,12 @@ def main():
     sorted_values = sorted(data_rate_values)
 
     quart = quantiles(sorted_values, n=4)
-    dec = quantiles(sorted_values, n=10)
-    perc = quantiles(sorted_values, n=100)
+    iqr = quart[2] - quart[0]
 
+    MEDIAN = quart[1]
     FLOW_RATES = [
-        [int(dec[-1]), int(perc[-1])],
-        [int(quart[-1]), int(dec[-1])],
+        [int(quart[2]), int(quart[2] + (Decimal(1.5) * iqr))],
+        [int(quart[0]), int(quart[2])],
     ]
 
     current_time = 30
@@ -311,14 +313,27 @@ def main():
     counter = 0
     for appGroup in apps.values():
         for app in appGroup["apps"]:
-            if int(app.value) == 0:
+            if (
+                int(app.value) == 0
+                or (args.start is not None and app.end <= args.start)
+                or (args.end is not None and app.init >= args.end)
+            ):
                 continue
+
+            startTime = app.init
+            stopTime = app.end
+            if args.start is not None:
+                startTime -= args.start
+                stopTime -= args.start
+                if startTime < 30:
+                    startTime = 30
+
             toml_apps[f"app{counter}"] = {
                 "type": "constSend",
                 "host": f"{appGroup['source']}Host",
                 "remote": f"{appGroup['target']}Host",
-                "startTime": f"{app.init}s",
-                "stopTime": f"{app.end}s",
+                "startTime": f"{startTime}s",
+                "stopTime": f"{stopTime}s",
                 "dataRate": f"{int(app.value)}bps",
             }
             counter += 1
