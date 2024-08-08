@@ -9,6 +9,8 @@ def parse_args():
     parser.add_argument("-a", "--accumulated", type=str, required=True)
     parser.add_argument("-p", "--production", type=str, required=True)
     parser.add_argument("-o", "--out-dir", type=str, required=False, default="")
+    parser.add_argument("-s", "--start", type=int, required=False, default=0)
+    parser.add_argument("-e", "--end", type=int, required=False, default=96)
 
     return parser.parse_args()
 
@@ -23,7 +25,7 @@ def calculate_range(values):
     return min(map(min, values)), max(map(max, values))
 
 
-def load_ren_prod(prod):
+def load_ren_prod(prod, start, end):
     ren_data = {}
     with open(prod, "r") as csv_file:
         data = pd.read_csv(csv_file, sep=";", skiprows=2)
@@ -59,7 +61,10 @@ def load_ren_prod(prod):
                 + row["Ondas"]
             )
 
-    return ren_data
+    return {
+        date: {prod: values[start:end] for prod, values in data.items()}
+        for date, data in ren_data.items()
+    }
 
 
 def disjointed_prod(prod_dict, switches, groups_ranges, out_dir):
@@ -163,7 +168,7 @@ def main():
         [accumulated[sw] for sw in groups_ranges["eolic_group"]]
     )
 
-    for date, prod_dict in load_ren_prod(args.production).items():
+    for date, prod_dict in load_ren_prod(args.production, args.start, args.end).items():
         out_dir = f"{date}/{args.out_dir}"
         Path(out_dir).mkdir(exist_ok=True, parents=True)
 
