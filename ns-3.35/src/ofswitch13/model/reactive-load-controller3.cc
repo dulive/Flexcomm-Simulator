@@ -1,5 +1,6 @@
 #include "reactive-load-controller3.h"
 #include "ns3/log.h"
+#include "ns3/node-list.h"
 #include "ns3/ofswitch13-device.h"
 
 NS_LOG_COMPONENT_DEFINE ("ReactiveLoadController3");
@@ -69,28 +70,20 @@ LoadWeight::operator== (const LoadWeight &b) const
 
 /* ########## LoadWeightCalc ########## */
 
-LoadWeightCalc::LoadWeightCalc () : weights ()
+LoadWeightCalc::LoadWeightCalc ()
 {
-  CalculateWeights ();
 }
 
-void
-LoadWeightCalc::CalculateWeights ()
+std::pair<double, DataRate>
+LoadWeightCalc::CalculateWeight (unsigned int node_id) const
 {
-  auto node_container = NodeContainer::GetGlobal ();
-  for (auto it = node_container.Begin (); it != node_container.End (); ++it)
+  Ptr<Node> node = NodeList::GetNode (node_id);
+  if (node->IsSwitch ())
     {
-      uint32_t node_id = (*it)->GetId ();
-      if ((*it)->IsHost ())
-        {
-          weights.insert ({node_id, GetInitialWeight ()});
-        }
-      else if ((*it)->IsSwitch ())
-        {
-          Ptr<OFSwitch13Device> of_sw = (*it)->GetObject<OFSwitch13Device> ();
-          weights.insert ({node_id, LoadWeight (of_sw->GetCpuUsage (), of_sw->GetCpuLoad ())});
-        }
+      Ptr<OFSwitch13Device> of_sw = node->GetObject<OFSwitch13Device> ();
+      return std::make_pair (of_sw->GetCpuUsage (), of_sw->GetCpuLoad ());
     }
+  return std::make_pair (0, DataRate (0));
 }
 
 LoadWeight
@@ -110,17 +103,10 @@ LoadWeightCalc::GetNonViableWeight () const
 LoadWeight
 LoadWeightCalc::GetWeight (Edge &e) const
 {
-  LoadWeight weight1 = weights.at (e.first);
-  LoadWeight weight2 = weights.at (e.second);
+  std::pair<double, DataRate> weight1 = CalculateWeight (e.first);
+  std::pair<double, DataRate> weight2 = CalculateWeight (e.second);
 
-  return LoadWeight (std::max (weight1.GetMaxUsage (), weight2.GetMaxUsage ()),
-                     weight1.GetLoad () + weight2.GetLoad (), 1);
-}
-
-LoadWeight
-LoadWeightCalc::GetWeight (uint32_t node) const
-{
-  return weights.at (node);
+  return LoadWeight (std::max (weight1.first, weight2.first), weight1.second + weight2.second, 1);
 }
 
 /* ########## ReactiveLoadController3 ########## */
@@ -153,10 +139,10 @@ ReactiveLoadController3::DoDispose ()
 }
 
 std::vector<Ptr<Node>>
-ReactiveLoadController3::CalculatePath (Flow flow)
+ReactiveLoadController3::CalculatePath (Ptr<Node> src_node, Ipv4Address dst_ip)
 {
   LoadWeightCalc weight_calc;
-  return Topology::DijkstraShortestPath<LoadWeight> (flow.src_ip, flow.dst_ip, weight_calc);
+  return Topology::DijkstraShortestPath<LoadWeight> (src_node, dst_ip, weight_calc);
 }
 
 } // namespace ns3

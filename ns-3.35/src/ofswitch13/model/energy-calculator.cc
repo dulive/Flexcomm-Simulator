@@ -13,7 +13,12 @@ namespace ns3 {
 
 NS_OBJECT_ENSURE_REGISTERED (EnergyCalculator);
 
-EnergyCalculator::EnergyCalculator () : m_energy ()
+EnergyCalculator::EnergyCalculator () : m_energy (), m_poll_frequency (10)
+{
+}
+
+EnergyCalculator::EnergyCalculator (unsigned int poll_frequency)
+    : m_energy (), m_poll_frequency (poll_frequency)
 {
 }
 
@@ -52,15 +57,13 @@ EnergyCalculator::NotifyConstructionCompleted (void)
 void
 EnergyCalculator::CollectEnergy ()
 {
-  Time current_time = Simulator::Now ();
   NodeContainer switches = NodeContainer::GetGlobalSwitches ();
   for (NodeContainer::Iterator it = switches.Begin (); it != switches.End (); it++)
     {
       Ptr<OFSwitch13Device> of_sw = (*it)->GetObject<OFSwitch13Device> ();
-      m_energy[of_sw->GetDatapathId ()] =
-          std::pair (of_sw->GetObject<NodeEnergyModel> ()->GetPowerDrawn (), current_time);
+      m_energy[of_sw->GetDatapathId ()] = of_sw->GetObject<NodeEnergyModel> ()->GetPowerDrawn ();
     }
-  Simulator::Schedule (Minutes (15), &EnergyCalculator::CollectEnergy, this);
+  Simulator::Schedule (Seconds (m_poll_frequency), &EnergyCalculator::CollectEnergy, this);
 }
 
 float
@@ -82,14 +85,9 @@ double
 EnergyCalculator::GetRealFlex (uint64_t node)
 {
   float max_acc_15 = GetMaxEnergy (node);
-  Time current_time = Simulator::Now ();
-  Ptr<OFSwitch13Device> of_sw = OFSwitch13Device::GetDevice (node);
-  double acc = of_sw->GetObject<NodeEnergyModel> ()->GetPowerDrawn () - m_energy[node].first;
-  // verify
-  double max_acc =
-      max_acc_15 / (900 / trunc (current_time.GetSeconds () - m_energy[node].second.GetSeconds ()));
+  double max_acc = max_acc_15 / (900.0 / m_poll_frequency);
 
-  return max_acc - acc;
+  return max_acc - m_energy[node];
 }
 
 } // namespace ns3

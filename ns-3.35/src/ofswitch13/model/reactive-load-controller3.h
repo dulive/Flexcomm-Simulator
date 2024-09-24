@@ -22,26 +22,22 @@ public:
   DataRate GetLoad () const;
   int GetHops () const;
 
-  LoadWeight operator+ (const LoadWeight &b) const;
-  bool operator< (const LoadWeight &b) const;
-  bool operator== (const LoadWeight &b) const;
+  LoadWeight operator+ (const LoadWeight &) const;
+  bool operator< (const LoadWeight &) const;
+  bool operator== (const LoadWeight &) const;
 };
 
 class LoadWeightCalc : public WeightCalc<LoadWeight>
 {
 private:
-  std::unordered_map<uint32_t, const LoadWeight> weights;
-
-  void CalculateWeights (void);
+  std::pair<double, DataRate> CalculateWeight (unsigned int) const;
 
 public:
   LoadWeightCalc ();
-  LoadWeightCalc (std::set<uint32_t>);
 
   LoadWeight GetInitialWeight () const override;
   LoadWeight GetNonViableWeight () const override;
   LoadWeight GetWeight (Edge &) const override;
-  LoadWeight GetWeight (uint32_t node) const;
 };
 
 class ReactiveLoadController3 : public ReactiveController
@@ -54,7 +50,7 @@ public:
   virtual void DoDispose () override;
 
 protected:
-  std::vector<Ptr<Node>> CalculatePath (Flow) override;
+  std::vector<Ptr<Node>> CalculatePath (Ptr<Node>, Ipv4Address) override;
 };
 
 } // namespace ns3

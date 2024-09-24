@@ -1,7 +1,6 @@
 #ifndef ENERGY_CALCULATOR_H
 #define ENERGY_CALCULATOR_H
 
-#include "ns3/nstime.h"
 #include "ns3/object.h"
 #include <unordered_map>
 
@@ -11,6 +10,7 @@ class EnergyCalculator : public Object
 {
 public:
   EnergyCalculator ();
+  EnergyCalculator (unsigned int);
   virtual ~EnergyCalculator ();
 
   static TypeId GetTypeId (void);
@@ -24,7 +24,8 @@ protected:
   virtual void NotifyConstructionCompleted (void);
 
 private:
-  std::unordered_map<uint64_t, std::pair<double, Time>> m_energy;
+  std::unordered_map<uint64_t, double> m_energy;
+  unsigned int m_poll_frequency;
 
   void CollectEnergy (void);
 };

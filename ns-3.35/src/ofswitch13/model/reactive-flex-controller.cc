@@ -1,4 +1,5 @@
 #include "ns3/log.h"
+#include "ns3/node-list.h"
 #include "ofswitch13-device.h"
 #include "reactive-flex-controller.h"
 
@@ -70,30 +71,21 @@ FlexWeight::operator== (const FlexWeight &b) const
 
 /* ########## FlexWeightCalc ########## */
 
-FlexWeightCalc::FlexWeightCalc (EnergyCalculator &calc) : weights ()
+FlexWeightCalc::FlexWeightCalc (EnergyCalculator &calc) : m_calc (calc)
 {
-  CalculateWeights (calc);
 }
 
-void
-FlexWeightCalc::CalculateWeights (EnergyCalculator &calc)
+std::pair<double, int>
+FlexWeightCalc::CalculateWeight (unsigned int node_id) const
 {
-  auto node_container = NodeContainer::GetGlobal ();
-  for (auto it = node_container.Begin (); it != node_container.End (); ++it)
+  Ptr<Node> node = NodeList::GetNode (node_id);
+  if (node->IsSwitch ())
     {
-      uint32_t node_id = (*it)->GetId ();
-      if ((*it)->IsHost ())
-        {
-          weights.insert ({node_id, GetInitialWeight ()});
-        }
-      else if ((*it)->IsSwitch ())
-        {
-          Ptr<OFSwitch13Device> of_sw = (*it)->GetObject<OFSwitch13Device> ();
-          uint64_t dpid = of_sw->GetDpId ();
-          double flex = calc.GetRealFlex (dpid);
-          weights.insert ({node_id, FlexWeight (of_sw->GetCpuUsage (), flex < 0 ? 1 : 0)});
-        }
+      Ptr<OFSwitch13Device> of_sw = node->GetObject<OFSwitch13Device> ();
+      double flex = m_calc.GetRealFlex (of_sw->GetDpId ());
+      return std::make_pair (of_sw->GetCpuUsage (), flex < 0 ? 1 : 0);
     }
+  return std::make_pair (0, 0);
 }
 
 FlexWeight
@@ -112,22 +104,15 @@ FlexWeightCalc::GetNonViableWeight () const
 FlexWeight
 FlexWeightCalc::GetWeight (Edge &e) const
 {
-  FlexWeight weight1 = weights.at (e.first);
-  FlexWeight weight2 = weights.at (e.second);
+  std::pair<double, int> weight1 = CalculateWeight (e.first);
+  std::pair<double, int> weight2 = CalculateWeight (e.second);
 
-  return FlexWeight (std::max (weight1.GetMaxUsage (), weight2.GetMaxUsage ()),
-                     weight1.GetValue () + weight2.GetValue (), 1);
-}
-
-FlexWeight
-FlexWeightCalc::GetWeight (uint32_t node) const
-{
-  return weights.at (node);
+  return FlexWeight (std::max (weight1.first, weight2.first), weight1.second + weight2.second, 1);
 }
 
 /* ########## ReactiveFlexController ########## */
 
-ReactiveFlexController::ReactiveFlexController () : m_energy_calculator ()
+ReactiveFlexController::ReactiveFlexController () : m_energy_calculator (60)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -155,10 +140,10 @@ ReactiveFlexController::DoDispose ()
 }
 
 std::vector<Ptr<Node>>
-ReactiveFlexController::CalculatePath (Flow flow)
+ReactiveFlexController::CalculatePath (Ptr<Node> src_node, Ipv4Address dst_ip)
 {
   FlexWeightCalc weight_calc (m_energy_calculator);
-  return Topology::DijkstraShortestPath<FlexWeight> (flow.src_ip, flow.dst_ip, weight_calc);
+  return Topology::DijkstraShortestPath<FlexWeight> (src_node, dst_ip, weight_calc);
 }
 
 } // namespace ns3

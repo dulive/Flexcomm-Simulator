@@ -1,8 +1,7 @@
-#ifndef REACTIVE_FLEX_CONTROLLER_H
-#define REACTIVE_FLEX_CONTROLLER_H
+#ifndef REACTIVE_FLEX_CONTROLLER2_H
+#define REACTIVE_FLEX_CONTROLLER2_H
 
 #include "energy-calculator.h"
-#include "ns3/ipv4-address.h"
 #include "ns3/topology.h"
 #include "reactive-controller.h"
 
@@ -11,16 +10,14 @@ namespace ns3 {
 class FlexWeight
 {
 private:
-  double max_usage;
   int value;
   int hops;
 
 public:
   FlexWeight ();
-  FlexWeight (double, int);
-  FlexWeight (double, int, int);
+  FlexWeight (int);
+  FlexWeight (int, int);
 
-  double GetMaxUsage () const;
   int GetValue () const;
   int GetHops () const;
 
@@ -33,7 +30,7 @@ class FlexWeightCalc : public WeightCalc<FlexWeight>
 {
 private:
   EnergyCalculator &m_calc;
-  std::pair<double, int> CalculateWeight (unsigned int) const;
+  int CalculateWeight (unsigned int) const;
 
 public:
   FlexWeightCalc (EnergyCalculator &);
@@ -43,11 +40,11 @@ public:
   FlexWeight GetWeight (Edge &) const override;
 };
 
-class ReactiveFlexController : public ReactiveController
+class ReactiveFlexController2 : public ReactiveController
 {
 public:
-  ReactiveFlexController ();
-  virtual ~ReactiveFlexController ();
+  ReactiveFlexController2 ();
+  virtual ~ReactiveFlexController2 ();
 
   static TypeId GetTypeId ();
   virtual void DoDispose () override;

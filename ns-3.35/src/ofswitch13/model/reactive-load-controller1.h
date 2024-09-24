@@ -9,18 +9,14 @@ namespace ns3 {
 class DoubleWeightCalc : public WeightCalc<double>
 {
 private:
-  std::unordered_map<uint32_t, const double> weights;
-
-  void CalculateWeights (void);
+  double CalculateWeight (unsigned int) const;
 
 public:
   DoubleWeightCalc ();
-  DoubleWeightCalc (std::set<uint32_t>);
 
   double GetInitialWeight () const override;
   double GetNonViableWeight () const override;
   double GetWeight (Edge &) const override;
-  double GetWeight (uint32_t node) const;
 };
 
 class ReactiveLoadController1 : public ReactiveController
@@ -33,7 +29,7 @@ public:
   virtual void DoDispose () override;
 
 protected:
-  std::vector<Ptr<Node>> CalculatePath (Flow) override;
+  std::vector<Ptr<Node>> CalculatePath (Ptr<Node>, Ipv4Address) override;
 };
 
 } // namespace ns3

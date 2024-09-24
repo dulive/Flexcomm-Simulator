@@ -11,35 +11,7 @@ namespace ns3 {
 
 NS_OBJECT_ENSURE_REGISTERED (ReactiveController);
 
-bool
-Flow::operator== (const Flow &flow) const
-{
-  return src_ip == flow.src_ip && dst_ip == flow.dst_ip && ip_proto == flow.ip_proto &&
-         src_port == flow.src_port && dst_port == flow.dst_port;
-}
-
-bool
-Flow::operator< (const Flow &flow) const
-{
-  return src_ip < flow.src_ip && dst_ip < flow.dst_ip && ip_proto < flow.ip_proto &&
-         src_port < flow.src_port && dst_port < flow.dst_port;
-}
-
-std::size_t
-Flow::hash_fn::operator() (const Flow &flow) const
-{
-  std::size_t seed = 0;
-  boost::hash_combine (seed, flow.src_ip.Get ());
-  boost::hash_combine (seed, flow.dst_ip.Get ());
-  boost::hash_combine (seed, flow.ip_proto);
-
-  boost::hash_combine (seed, flow.src_port);
-  boost::hash_combine (seed, flow.dst_port);
-
-  return seed;
-}
-
-ReactiveController::ReactiveController () : m_state ()
+ReactiveController::ReactiveController ()
 {
   NS_LOG_FUNCTION (this);
 }
@@ -63,7 +35,6 @@ void
 ReactiveController::DoDispose ()
 {
   NS_LOG_FUNCTION (this);
-  m_state.clear ();
   OFSwitch13Controller::DoDispose ();
 }
 
@@ -123,8 +94,12 @@ ReactiveController::ExtractInPort (struct ofl_match *match)
 }
 
 void
-ReactiveController::FlowMatching (std::stringstream &cmd, Flow flow)
+ReactiveController::AddRule (uint64_t dpId, uint32_t port, Flow flow)
 {
+  std::stringstream cmd;
+
+  // flags OFPFF_SEND_FLOW_REM (0b0001 -> flags=0x0001)
+  cmd << "flow-mod cmd=add,table=0,hard=10,flags=0x0001 eth_type=0x800,";
   cmd << "ip_proto=" << flow.ip_proto << ",ip_src=" << flow.src_ip << ",ip_dst=" << flow.dst_ip;
   switch (flow.ip_proto)
     {
@@ -137,33 +112,16 @@ ReactiveController::FlowMatching (std::stringstream &cmd, Flow flow)
     default:
       break;
     }
-}
+  cmd << " apply:output=" << port;
+  NS_LOG_DEBUG ("[" << dpId << "]: " << cmd.str ());
 
-void
-ReactiveController::AddRules (std::vector<Ptr<Node>> path, Flow flow)
-{
-  for (auto rit = std::next (path.crbegin ()); rit != path.crend (); ++rit)
-    {
-      Ptr<OFSwitch13Device> of_dev = (*rit)->GetObject<OFSwitch13Device> ();
-      uint64_t dpid = of_dev->GetDpId ();
-      uint32_t out_port = of_dev->GetPortNoConnectedTo (*(rit - 1));
-
-      std::stringstream cmd;
-
-      // flags OFPFF_SEND_FLOW_REM OFPFF_RESET_COUNTS (0b0101 -> flags=0x0005)
-      cmd << "flow-mod cmd=add,table=0,idle=60,flags=0x0005 eth_type=0x800,";
-      FlowMatching (cmd, flow);
-      cmd << " apply:output=" << out_port;
-      NS_LOG_DEBUG ("[" << dpid << "]: " << cmd.str ());
-
-      DpctlExecute (dpid, cmd.str ());
-    }
+  DpctlExecute (dpId, cmd.str ());
 }
 
 std::vector<Ptr<Node>>
-ReactiveController::CalculatePath (Flow flow)
+ReactiveController::CalculatePath (Ptr<Node> src_node, Ipv4Address dst_ip)
 {
-  return Topology::DijkstraShortestPath (flow.src_ip, flow.dst_ip);
+  return Topology::DijkstraShortestPath (src_node, dst_ip);
 }
 
 void
@@ -178,27 +136,6 @@ ReactiveController::HandshakeSuccessful (Ptr<const RemoteSwitch> swtch)
 
   // set to not send packet to controller
   DpctlExecute (dpid, "set-config miss=0");
-
-  Ptr<OFSwitch13Device> of_device = OFSwitch13Device::GetDevice (dpid);
-  NodeContainer hosts = NodeContainer::GetGlobalHosts ();
-
-  for (auto it = hosts.Begin (); it != hosts.End (); ++it)
-    {
-      uint32_t out_port = of_device->GetPortNoConnectedTo (*it);
-      if (out_port != -1)
-        {
-          std::ostringstream cmd;
-
-          Ipv4Address ip = (*it)->GetObject<Ipv4> ()->GetAddress (1, 0).GetLocal ();
-          // flags OFPFF_RESET_COUNTS (0b0100 -> flags=0x0004)
-          cmd << "flow-mod cmd=add,table=0,flags=0x0004 eth_type=0x800,ip_dst=" << ip
-              << " apply:output=" << out_port;
-
-          NS_LOG_DEBUG ("[" << dpid << "]: " << cmd.str ());
-
-          DpctlExecute (dpid, cmd.str ());
-        }
-    }
 }
 
 ofl_err
@@ -211,75 +148,35 @@ ReactiveController::HandlePacketIn (struct ofl_msg_packet_in *msg, Ptr<const Rem
   NS_LOG_DEBUG ("Packet in match: " << msgStr);
   free (msgStr);
 
-  if (msg->reason == OFPR_NO_MATCH)
-    {
-      uint32_t out_port;
+  Ptr<OFSwitch13Device> of_sw = OFSwitch13Device::GetDevice (swtch->GetDpId ());
+  Ptr<Node> node = of_sw->GetObject<Node> ();
+  Flow flow = ExtractFlow ((struct ofl_match *) msg->match);
 
-      Ptr<OFSwitch13Device> of_sw = OFSwitch13Device::GetDevice (swtch->GetDpId ());
-      Flow flow = ExtractFlow ((struct ofl_match *) msg->match);
-      uint32_t in_port = ExtractInPort ((struct ofl_match *) msg->match);
+  std::vector<Ptr<Node>> path = CalculatePath (node, flow.dst_ip);
+  uint32_t out_port = of_sw->GetPortNoConnectedTo (path[1]);
 
-      auto it = m_state.find (flow);
-      if (it == m_state.end ())
-        {
+  AddRule (swtch->GetDpId (), out_port, flow);
 
-          std::vector<Ptr<Node>> path = CalculatePath (flow);
-          path.pop_back ();
-          path.erase (path.begin ());
+  uint32_t in_port = ExtractInPort ((struct ofl_match *) msg->match);
+  struct ofl_msg_packet_out reply;
+  reply.header.type = OFPT_PACKET_OUT;
+  reply.buffer_id = msg->buffer_id;
+  reply.in_port = in_port;
+  reply.data_length = 0;
+  reply.data = 0;
 
-          AddRules (path, flow);
+  struct ofl_action_output *a =
+      (struct ofl_action_output *) xmalloc (sizeof (struct ofl_action_output));
+  a->header.type = OFPAT_OUTPUT;
+  a->port = out_port;
+  a->max_len = 0;
 
-          m_state[flow] = path;
+  reply.actions_num = 1;
+  reply.actions = (struct ofl_action_header **) &a;
 
-          out_port = of_sw->GetPortNoConnectedTo (path[1]);
-        }
-      else
-        {
-          Ptr<Node> node = of_sw->GetObject<Node> ();
-          std::vector<Ptr<Node>> path = (*it).second;
-          auto path_it = std::find (path.cbegin (), path.cend (), node);
-          out_port = of_sw->GetPortNoConnectedTo (*std::next (path_it));
-        }
-
-      struct ofl_msg_packet_out reply;
-      reply.header.type = OFPT_PACKET_OUT;
-      reply.buffer_id = msg->buffer_id;
-      reply.in_port = in_port;
-      reply.data_length = 0;
-      reply.data = 0;
-
-      struct ofl_action_output *a =
-          (struct ofl_action_output *) xmalloc (sizeof (struct ofl_action_output));
-      a->header.type = OFPAT_OUTPUT;
-      a->port = out_port;
-      a->max_len = 0;
-
-      reply.actions_num = 1;
-      reply.actions = (struct ofl_action_header **) &a;
-
-      SendToSwitch (swtch, (struct ofl_msg_header *) &reply, xid);
-    }
+  SendToSwitch (swtch, (struct ofl_msg_header *) &reply, xid);
 
   ofl_msg_free ((struct ofl_msg_header *) msg, 0);
-  return 0;
-}
-
-ofl_err
-ReactiveController::HandleFlowRemoved (struct ofl_msg_flow_removed *msg,
-                                       Ptr<const RemoteSwitch> swtch, uint32_t xid)
-{
-  NS_LOG_FUNCTION (this);
-  if (msg->reason == OFPRR_IDLE_TIMEOUT)
-    {
-      char *msgStr = ofl_structs_match_to_string ((struct ofl_match_header *) msg->stats->match, 0);
-      NS_LOG_DEBUG ("Packet in match: " << msgStr);
-      free (msgStr);
-
-      Ptr<Node> node = OFSwitch13Device::GetDevice (swtch->GetDpId ())->GetObject<Node> ();
-      Flow flow = ExtractFlow ((struct ofl_match *) msg->stats->match);
-      m_state.erase (flow);
-    }
-  ofl_msg_free_flow_removed (msg, true, 0);
   return 0;
 }
 

@@ -1,5 +1,6 @@
 #include "reactive-load-controller1.h"
 #include "ns3/log.h"
+#include "ns3/node-list.h"
 #include "ns3/ofswitch13-device.h"
 
 NS_LOG_COMPONENT_DEFINE ("ReactiveLoadController1");
@@ -10,28 +11,20 @@ NS_OBJECT_ENSURE_REGISTERED (ReactiveLoadController1);
 
 /* ########## DoubleWeightCalc ########## */
 
-DoubleWeightCalc::DoubleWeightCalc () : weights ()
+DoubleWeightCalc::DoubleWeightCalc ()
 {
-  CalculateWeights ();
 }
 
-void
-DoubleWeightCalc::CalculateWeights ()
+double
+DoubleWeightCalc::CalculateWeight (unsigned int node_id) const
 {
-  auto node_container = NodeContainer::GetGlobal ();
-  for (auto it = node_container.Begin (); it != node_container.End (); ++it)
+  Ptr<Node> node = NodeList::GetNode (node_id);
+  if (node->IsSwitch ())
     {
-      uint32_t node_id = (*it)->GetId ();
-      if ((*it)->IsHost ())
-        {
-          weights.insert ({node_id, GetInitialWeight ()});
-        }
-      else if ((*it)->IsSwitch ())
-        {
-          Ptr<OFSwitch13Device> of_sw = (*it)->GetObject<OFSwitch13Device> ();
-          weights.insert ({node_id, of_sw->GetCpuUsage ()});
-        }
+      Ptr<OFSwitch13Device> of_sw = node->GetObject<OFSwitch13Device> ();
+      return of_sw->GetCpuUsage ();
     }
+  return 0.0;
 }
 
 double
@@ -49,13 +42,10 @@ DoubleWeightCalc::GetNonViableWeight () const
 double
 DoubleWeightCalc::GetWeight (Edge &e) const
 {
-  return weights.at (e.first) + weights.at (e.second);
-}
+  double weight1 = CalculateWeight (e.first);
+  double weight2 = CalculateWeight (e.second);
 
-double
-DoubleWeightCalc::GetWeight (uint32_t node) const
-{
-  return weights.at (node);
+  return weight1 + weight2;
 }
 
 /* ########## ReactiveLoadController1 ########## */
@@ -88,10 +78,10 @@ ReactiveLoadController1::DoDispose ()
 }
 
 std::vector<Ptr<Node>>
-ReactiveLoadController1::CalculatePath (Flow flow)
+ReactiveLoadController1::CalculatePath (Ptr<Node> src_node, Ipv4Address dst_ip)
 {
   DoubleWeightCalc weight_calc;
-  return Topology::DijkstraShortestPath<double> (flow.src_ip, flow.dst_ip, weight_calc);
+  return Topology::DijkstraShortestPath<double> (src_node, dst_ip, weight_calc);
 }
 
 } // namespace ns3
