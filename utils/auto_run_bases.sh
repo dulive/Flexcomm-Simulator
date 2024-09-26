@@ -2,7 +2,6 @@
 
 BASES=("SimpleController" "ReactiveLoadController1" "ReactiveLoadController2" "ReactiveLoadController3")
 DIR="$(dirname "$(realpath "$0")")/"
-OUT_DIR="$(realpath "${DIR}/../outputs/${TOPO}")"
 USE_BASES=true
 
 while [[ ${#} -gt 0 ]]; do
@@ -19,6 +18,10 @@ while [[ ${#} -gt 0 ]]; do
     USE_BASES=false
     shift 2
     ;;
+  *)
+    echo "Unkown option ${1}"
+    exit 1
+    ;;
   esac
 done
 
@@ -26,6 +29,8 @@ if [[ -z ${TOPO} ]]; then
   echo "A topology is needed" 1>&2
   exit 1
 fi
+
+OUT_DIR="$(realpath "${DIR}/../outputs/${TOPO}")"
 
 if $USE_BASES; then
   for base in "${BASES[@]}"; do
