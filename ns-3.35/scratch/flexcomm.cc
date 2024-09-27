@@ -24,6 +24,7 @@
 #include "ns3/energy-api.h"
 #include "ns3/parser-module.h"
 #include "ns3/flow-monitor-module.h"
+#include "ns3/point-to-point-ethernet-net-device.h"
 #include "ns3/system-wall-clock-ms.h"
 
 using namespace ns3;
@@ -54,6 +55,7 @@ main (int argc, char *argv[])
     {
       GlobalValue::Bind ("SimulatorImplementationType", StringValue ("ns3::RealtimeSimulatorImpl"));
       checksum = true; // Override checksum option
+      PointToPointEthernetNetDevice::EnableArp ();
       EnergyAPI::StartExternalServer (topo, estiFile, flexFile);
     }
 
