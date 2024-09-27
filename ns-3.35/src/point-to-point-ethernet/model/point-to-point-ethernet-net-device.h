@@ -203,6 +203,8 @@ public:
   void SetLinkDown ();
   void SetLinkUp ();
 
+  static void EnableArp (void);
+
 protected:
   /**
    * \brief Handler for MPI receive event
@@ -460,6 +462,8 @@ private:
   TracedCallback<> m_linkChangeCallbacks; //!< Callback for the link change event
 
   static const uint16_t DEFAULT_MTU = 1500; //!< Default MTU
+
+  static bool m_arp_enabled;
 
   /**
    * \brief The Maximum Transmission Unit

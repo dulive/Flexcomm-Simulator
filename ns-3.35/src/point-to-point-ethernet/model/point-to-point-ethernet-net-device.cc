@@ -36,6 +36,8 @@ NS_LOG_COMPONENT_DEFINE ("PointToPointEthernetNetDevice");
 
 NS_OBJECT_ENSURE_REGISTERED (PointToPointEthernetNetDevice);
 
+bool PointToPointEthernetNetDevice::m_arp_enabled = false;
+
 TypeId
 PointToPointEthernetNetDevice::GetTypeId (void)
 {
@@ -670,7 +672,7 @@ bool
 PointToPointEthernetNetDevice::NeedsArp (void) const
 {
   NS_LOG_FUNCTION (this);
-  return true;
+  return m_arp_enabled;
 }
 
 void
@@ -749,6 +751,12 @@ void
 PointToPointEthernetNetDevice::SetLinkUp ()
 {
   m_linkUp = true;
+}
+
+void
+PointToPointEthernetNetDevice::EnableArp ()
+{
+  m_arp_enabled = true;
 }
 
 } // namespace ns3
