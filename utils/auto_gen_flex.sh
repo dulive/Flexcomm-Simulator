@@ -3,7 +3,6 @@
 DIR="$(dirname "$(realpath "$0")")/"
 FLEXES="flex_files"
 PRODS="prod_files"
-NORMALIZER="${DIR}/normalize_ren_prod.py"
 BASES=("ReactiveLoadController1" "ReactiveLoadController2" "ReactiveLoadController3" "SimpleController")
 
 while [[ ${#} -gt 0 ]]; do
@@ -30,10 +29,6 @@ while [[ ${#} -gt 0 ]]; do
     ;;
   -p | --prod-dir)
     PRODS="${2}"
-    shift 2
-    ;;
-  -n | --normalizer)
-    NORMALIZER="$(realpath "${2}")"
     shift 2
     ;;
   -b | --bases)
@@ -63,7 +58,7 @@ recursive_ren_norm() {
     done
   elif [[ -f "${1}" ]]; then
     for alg in "${BASES[@]}"; do
-      python3 "${NORMALIZER}" -a "${ESTI_DIR}/${alg}_estimate.json" -p "${1}" -o "${alg}_based" -s "${START}" -e "${END}"
+      python3 "${DIR}/normalize_ren_prod.py" -a "${ESTI_DIR}/${alg}_estimate.json" -p "${1}" -o "${alg}_based" -s "${START}" -e "${END}"
     done
   else
     echo "Invalid production ${1}" 1>&2
@@ -86,15 +81,6 @@ recursive_ren_flex() {
   else
     echo "Invalid production ${1}" 1>&2
   fi
-}
-
-ren_flex() {
-  mkdir -p "${1}_estimate"
-  pushd "${1}_estimate" >/dev/null || exit
-  for prod in "${PROD_DIR}"/*; do
-    recursive_ren_flex "${prod}" "${1}"
-  done
-  popd >/dev/null || exit
 }
 
 mkdir -p "${PROD_DIR}"
@@ -124,6 +110,11 @@ mkdir -p "${FLEX_DIR}"
   mkdir -p "ren_normalized"
   cd "ren_normalized" || exit
   for alg in "${BASES[@]}"; do
-    ren_flex "${alg}"
+    mkdir -p "${alg}_estimate"
+    pushd "${alg}_estimate" >/dev/null || exit
+    for prod in "${PROD_DIR}"/*; do
+      recursive_ren_flex "${prod}" "${alg}"
+    done
+    popd >/dev/null || exit
   done
 )
