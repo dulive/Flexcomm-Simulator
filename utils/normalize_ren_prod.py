@@ -2,7 +2,7 @@ import argparse
 import pandas as pd
 import json
 from pathlib import Path
-from itertools import permutations, product
+from itertools import permutations
 from statistics import quantiles
 
 
@@ -17,13 +17,15 @@ def parse_args():
     return parser.parse_args()
 
 
-def normalize(values, a, b, reduced=False):
-    if reduced:
-        parts = [4, 10, 100]
-        for n in parts:
-            x_min, *_, x_max = quantiles(values, n=n)
-            if x_min != x_max:
-                break
+def normalize(values, a, b, mode=None):
+    if mode == "decrease":
+        x_min, *_, x_max = quantiles(values, n=4)
+        if x_min == x_max:
+            x_min, *_, x_max = quantiles(values, n=10)
+    elif mode == "increase":
+        x_min, *_, x_max = quantiles(values, n=100)
+        if x_max <= max(values):
+            x_min, *_, x_max = quantiles(values, n=1000)
     else:
         x_max = max(values)
         x_min = min(values)
@@ -74,7 +76,7 @@ def load_ren_prod(prod):
 
 
 def disjointed_prod(
-    prod_dict, switches, ranges, start, end, out_dir, pre_range=True, reduced=False
+    prod_dict, switches, ranges, start, end, out_dir, pre_range=True, mode=None
 ):
 
     for prod_type, prod_vals in prod_dict.items():
@@ -82,11 +84,10 @@ def disjointed_prod(
             prod_vals = prod_vals[start:end]
 
         global_prod = {
-            sw: normalize(prod_vals, *ranges["global"], reduced=reduced)
-            for sw in switches
+            sw: normalize(prod_vals, *ranges["global"], mode=mode) for sw in switches
         }
         switch_prod = {
-            sw: normalize(prod_vals, *ranges["per_switch"][sw], reduced=reduced)
+            sw: normalize(prod_vals, *ranges["per_switch"][sw], mode=mode)
             for sw in switches
         }
 
@@ -109,7 +110,7 @@ def grouped_prod(
     end,
     out_dir,
     pre_range=True,
-    reduced=False,
+    mode=None,
     range_selection=None,
 ):
     energies = ("hydro", "solar", "eolic")
@@ -133,7 +134,7 @@ def grouped_prod(
                         else ranges[energy]
                     )
                 ),
-                reduced=reduced,
+                mode=mode,
             )
             for sw in groups[index]
         }
@@ -177,15 +178,17 @@ def main():
 
     for date, prod_dict in load_ren_prod(args.production).items():
 
-        for pre_range, reduced in product((True, False), repeat=2):
+        for pre_range, mode in [
+            (b, m) for b in (True, False) for m in (None, "decrease", "increase")
+        ]:
             out_dir = f"{args.out_dir}/{date}/"
             if pre_range:
                 out_dir += "pre_range"
             else:
                 out_dir += "pos_range"
 
-            if reduced:
-                out_dir += "_reduced"
+            if mode is not None:
+                out_dir += "_" + mode
 
             Path(out_dir).mkdir(exist_ok=True, parents=True)
 
@@ -197,7 +200,7 @@ def main():
                 args.end,
                 out_dir,
                 pre_range=pre_range,
-                reduced=reduced,
+                mode=mode,
             )
 
             for index, groups in enumerate(permutations(switch_groups)):
@@ -216,7 +219,7 @@ def main():
                     args.end,
                     grouped_dir,
                     pre_range=pre_range,
-                    reduced=reduced,
+                    mode=mode,
                 )
                 grouped_prod(
                     prod_dict,
@@ -227,7 +230,7 @@ def main():
                     grouped_dir,
                     range_selection="global",
                     pre_range=pre_range,
-                    reduced=reduced,
+                    mode=mode,
                 )
                 grouped_prod(
                     prod_dict,
@@ -238,7 +241,7 @@ def main():
                     grouped_dir,
                     range_selection="per_switch",
                     pre_range=pre_range,
-                    reduced=reduced,
+                    mode=mode,
                 )
 
 
