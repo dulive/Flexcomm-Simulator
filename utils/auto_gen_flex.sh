@@ -102,7 +102,7 @@ mkdir -p "${FLEX_DIR}"
     mkdir -p "${base}_reactive"
     pushd "${base}_reactive" >/dev/null || exit
     for reactive in "${BASES[@]:0:3}"; do
-      python3 "${DIR}/gen_flex.py" "${ESTI_DIR}/${reactive}_estimate.json" "${ESTI_DIR}/${base}_estimate.json" -o "${alg}_flex.json"
+      python3 "${DIR}/gen_flex.py" "${ESTI_DIR}/${reactive}_estimate.json" "${ESTI_DIR}/${base}_estimate.json" -o "${reactive}_flex.json"
     done
     popd >/dev/null || exit
   done
