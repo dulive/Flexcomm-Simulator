@@ -53,8 +53,8 @@ ESTI_DIR="$(realpath "${DIR}/../topologies/${TOPO}/estimate_files")"
 
 recursive_ren_norm() {
   if [[ -d "${1}" ]]; then
-    for prod in "${1}"/*; do
-      recursive_ren_norm "${prod}"
+    for p in "${1}"/*; do
+      recursive_ren_norm "${p}"
     done
   elif [[ -f "${1}" ]]; then
     for alg in "${BASES[@]}"; do
@@ -70,8 +70,8 @@ recursive_ren_flex() {
     dir_name="$(basename "${1}")"
     mkdir -p "${dir_name}"
     pushd "${dir_name}" >/dev/null || exit
-    for prod in "${1}"/*; do
-      recursive_ren_flex "${prod}" "${2}"
+    for p in "${1}"/*; do
+      recursive_ren_flex "${p}" "${2}"
     done
     popd >/dev/null || exit
   elif [[ -f "${1}" ]]; then

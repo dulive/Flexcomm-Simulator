@@ -47,19 +47,18 @@ ESTI_DIR="$(realpath "${DIR}/../topologies/${TOPO}/estimate_files")"
 recursive_flex_run() {
   if [[ -d "${FLEX_DIR}/${3}" ]]; then
     for flex_file in "${FLEX_DIR}/${3}"/*; do
-      flex="${flex_file##"${FLEX_DIR}/"}"
-      recursive_flex_run "${1}" "${2}" "${flex}"
+      recursive_flex_run "${1}" "${2}" "${flex_file##"${FLEX_DIR}/"}"
     done
   elif [[ -f "${FLEX_DIR}/${3}" ]]; then
     echo "### Using flex file: ${3}; Using esti file: ${2}"
     if [[ "${1}" == "External" ]]; then
       read -n 1 -s -r -p "Please start extenal energy server [Continue]"
       echo
-      alg="${1}"
+      algorithm="${1}"
     else
-      alg="ns3::${1}"
+      algorithm="ns3::${1}"
     fi
-    make run TOPO="${TOPO}" CONTROLLER="${alg}" FLEXFILE="flex_files/${3}" ESTIFILE="estimate_files/${2}"
+    make run TOPO="${TOPO}" CONTROLLER="${algorithm}" FLEXFILE="flex_files/${3}" ESTIFILE="estimate_files/${2}"
     if [[ -z ${OUT_NAME} ]]; then
       dir_name="${OUT_DIR}/${1}/${2%%.json}/${3%%.json}"
     else
