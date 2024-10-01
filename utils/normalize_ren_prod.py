@@ -19,7 +19,11 @@ def parse_args():
 
 def normalize(values, a, b, reduced=False):
     if reduced:
-        x_min, _, x_max = quantiles(values)
+        parts = [4, 10, 100]
+        for n in parts:
+            x_min, *_, x_max = quantiles(values, n=n)
+            if x_min != x_max:
+                break
     else:
         x_max = max(values)
         x_min = min(values)
