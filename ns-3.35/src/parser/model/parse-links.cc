@@ -125,7 +125,7 @@ installController (std::string outPath)
       of13Helper->SetDeviceAttribute ("CpuCapacity", StringValue ("100Gbps"));
     }
   of13Helper->CreateOpenFlowChannels ();
-  of13Helper->EnableOpenFlowPcap (SystemPath::Append (outPath, "ofchannel"));
+  // of13Helper->EnableOpenFlowPcap (SystemPath::Append (outPath, "ofchannel"));
 }
 
 void
