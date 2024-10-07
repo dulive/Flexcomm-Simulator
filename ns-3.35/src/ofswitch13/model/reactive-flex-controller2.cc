@@ -13,58 +13,58 @@ namespace ns3 {
 
 NS_OBJECT_ENSURE_REGISTERED (ReactiveFlexController2);
 
-/* ########## FlexWeight ########## */
+/* ########## FlexWeight2 ########## */
 
-FlexWeight::FlexWeight () : value (0), hops (0)
+FlexWeight2::FlexWeight2 () : value (0), hops (0)
 {
 }
 
-FlexWeight::FlexWeight (int value) : value (value), hops (0)
+FlexWeight2::FlexWeight2 (int value) : value (value), hops (0)
 {
 }
 
-FlexWeight::FlexWeight (int value, int hops) : value (value), hops (hops)
+FlexWeight2::FlexWeight2 (int value, int hops) : value (value), hops (hops)
 {
 }
 
 int
-FlexWeight::GetValue () const
+FlexWeight2::GetValue () const
 {
   return value;
 }
 
 int
-FlexWeight::GetHops () const
+FlexWeight2::GetHops () const
 {
   return hops;
 }
 
-FlexWeight
-FlexWeight::operator+ (const FlexWeight &b) const
+FlexWeight2
+FlexWeight2::operator+ (const FlexWeight2 &b) const
 {
-  return FlexWeight (value + b.value, hops + b.hops);
+  return FlexWeight2 (value + b.value, hops + b.hops);
 }
 
 bool
-FlexWeight::operator< (const FlexWeight &b) const
+FlexWeight2::operator< (const FlexWeight2 &b) const
 {
   return value == b.value ? hops < b.hops : value < b.value;
 }
 
 bool
-FlexWeight::operator== (const FlexWeight &b) const
+FlexWeight2::operator== (const FlexWeight2 &b) const
 {
   return value == b.value && hops == b.hops;
 }
 
-/* ########## FlexWeightCalc ########## */
+/* ########## FlexWeightCalc2 ########## */
 
-FlexWeightCalc::FlexWeightCalc (EnergyCalculator &calc) : m_calc (calc)
+FlexWeightCalc2::FlexWeightCalc2 (EnergyCalculator &calc) : m_calc (calc)
 {
 }
 
 int
-FlexWeightCalc::CalculateWeight (unsigned int node_id) const
+FlexWeightCalc2::CalculateWeight (unsigned int node_id) const
 {
   Ptr<Node> node = NodeList::GetNode (node_id);
   if (node->IsSwitch ())
@@ -76,25 +76,25 @@ FlexWeightCalc::CalculateWeight (unsigned int node_id) const
   return 0;
 }
 
-FlexWeight
-FlexWeightCalc::GetInitialWeight () const
+FlexWeight2
+FlexWeightCalc2::GetInitialWeight () const
 {
-  return FlexWeight{};
+  return FlexWeight2{};
 }
 
-FlexWeight
-FlexWeightCalc::GetNonViableWeight () const
+FlexWeight2
+FlexWeightCalc2::GetNonViableWeight () const
 {
-  return FlexWeight (std::numeric_limits<int> ().max (), std::numeric_limits<int> ().max ());
+  return FlexWeight2 (std::numeric_limits<int> ().max (), std::numeric_limits<int> ().max ());
 }
 
-FlexWeight
-FlexWeightCalc::GetWeight (Edge &e) const
+FlexWeight2
+FlexWeightCalc2::GetWeight (Edge &e) const
 {
   int weight1 = CalculateWeight (e.first);
   int weight2 = CalculateWeight (e.second);
 
-  return FlexWeight (weight1 + weight2, 1);
+  return FlexWeight2 (weight1 + weight2, 1);
 }
 
 /* ########## ReactiveFlexController2 ########## */
@@ -129,8 +129,8 @@ ReactiveFlexController2::DoDispose ()
 std::vector<Ptr<Node>>
 ReactiveFlexController2::CalculatePath (Ptr<Node> src_node, Ipv4Address dst_ip)
 {
-  FlexWeightCalc weight_calc (m_energy_calculator);
-  return Topology::DijkstraShortestPath<FlexWeight> (src_node, dst_ip, weight_calc);
+  FlexWeightCalc2 weight_calc (m_energy_calculator);
+  return Topology::DijkstraShortestPath<FlexWeight2> (src_node, dst_ip, weight_calc);
 }
 
 } // namespace ns3

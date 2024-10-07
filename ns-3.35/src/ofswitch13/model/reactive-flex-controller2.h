@@ -7,37 +7,37 @@
 
 namespace ns3 {
 
-class FlexWeight
+class FlexWeight2
 {
 private:
   int value;
   int hops;
 
 public:
-  FlexWeight ();
-  FlexWeight (int);
-  FlexWeight (int, int);
+  FlexWeight2 ();
+  FlexWeight2 (int);
+  FlexWeight2 (int, int);
 
   int GetValue () const;
   int GetHops () const;
 
-  FlexWeight operator+ (const FlexWeight &) const;
-  bool operator< (const FlexWeight &) const;
-  bool operator== (const FlexWeight &) const;
+  FlexWeight2 operator+ (const FlexWeight2 &) const;
+  bool operator< (const FlexWeight2 &) const;
+  bool operator== (const FlexWeight2 &) const;
 };
 
-class FlexWeightCalc : public WeightCalc<FlexWeight>
+class FlexWeightCalc2 : public WeightCalc<FlexWeight2>
 {
 private:
   EnergyCalculator &m_calc;
   int CalculateWeight (unsigned int) const;
 
 public:
-  FlexWeightCalc (EnergyCalculator &);
+  FlexWeightCalc2 (EnergyCalculator &);
 
-  FlexWeight GetInitialWeight () const override;
-  FlexWeight GetNonViableWeight () const override;
-  FlexWeight GetWeight (Edge &) const override;
+  FlexWeight2 GetInitialWeight () const override;
+  FlexWeight2 GetNonViableWeight () const override;
+  FlexWeight2 GetWeight (Edge &) const override;
 };
 
 class ReactiveFlexController2 : public ReactiveController
