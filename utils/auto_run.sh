@@ -65,7 +65,8 @@ recursive_flex_run() {
       dir_name="${OUT_DIR}/${OUT_NAME}/${2%%.json}/${3%%.json}"
     fi
     mkdir -p "${dir_name}"
-    mv "${OUT_DIR}"/*.* "${dir_name}"
+    rm -f "${OUT_DIR}"/*.pcap
+    mv "${OUT_DIR}"/*.csv "${dir_name}"
     if [[ "${1}" == "External" ]]; then
       read -n 1 -s -r -p "Finished external [Continue]"
       echo
