@@ -31,20 +31,12 @@ GREY98 = "#fafafa"
 
 # TODO: make this work asap
 
-DIR = os.path.dirname(os.path.realpath(__file__))
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-t", "--topologies", type=str, action="extend", nargs="*", default=[]
-    )
-    parser.add_argument(
-        "-f", "--flex-files", type=str, action="extend", nargs="*", default=[]
-    )
-    parser.add_argument(
-        "-e", "--esti-files", type=str, action="extend", nargs="*", default=[]
-    )
+    parser.add_argument("-t", "--topology", type=str, required=True)
+    parser.add_argument("-f", "--flexibility", type=str, required=True)
+    parser.add_argument("-e", "--estimate", type=str, required=True)
     parser.add_argument(
         "-a", "--algorithms", type=str, action="extend", nargs="*", default=[]
     )
@@ -528,28 +520,10 @@ def power_drawn():
     pass
 
 
-def get_flex_files(flex_dir, start_dir):
-    flexes = list()
-    for entry in os.listdir(flex_dir):
-        entry_path = os.path.join(flex_dir, entry)
-        if os.path.isdir(entry_path):
-            flexes += get_flex_files(entry_path, start_dir)
-        else:
-            flexes.append(os.path.relpath(entry_path, start_dir))
-
-    return flexes
-
-
-def parse_traces(alg_dir, esti_path, flex_path):
+def parse_traces(alg_dir, estimate, flexibility):
     trace_path = os.path.join(alg_dir, "ecofen-trace.csv")
-    with (
-        open(trace_path) as trace_file,
-        open(esti_path) as esti_file,
-        open(flex_path) as flex_file,
-    ):
+    with open(trace_path) as trace_file:
         trace = pd.read_csv(trace_file, sep=";")
-        flexibility = pd.read_json(flex_file)
-        estimate = pd.read_json(esti_file)
 
     nodes = trace["NodeName"].unique()
     # NOTE: h * 60 = minutes in hours
@@ -607,85 +581,74 @@ def main():
         warnings.warn("Input directory does not exist")
         sys.exit(1)
 
-    global INPUT_DIR, OUTPUT_DIR, BASES, TOPO_DIR
-    BASES = [
-        "ReactiveLoadController1",
-        "ReactiveLoadController2",
-        "ReactiveLoadController3",
-        "SimpleController",
-    ] + args.bases
-    INPUT_DIR = os.path.realpath(os.path.join(DIR, "..", args.input_dir))
-    OUTPUT_DIR = os.path.realpath(os.path.join(DIR, "..", args.output_dir))
-    TOPO_DIR = os.path.realpath(os.path.join(DIR, "../", args.topologies_dir))
+    dir = os.path.dirname(os.path.realpath(__file__))
+
+    topo_input_dir = os.path.realpath(
+        os.path.join(dir, "..", args.input_dir, args.topology)
+    )
+    topo_dir = os.path.realpath(os.path.join(dir, "..", args.topologies_dir))
+    esti_path = (
+        os.path.join(topo_dir, args.topology, "estimate_files", args.estimate) + ".json"
+    )
+    flex_path = (
+        os.path.join(topo_dir, args.topology, "flex_files", args.flexibility) + ".json"
+    )
+
+    if not os.path.exists(topo_input_dir):
+        warnings.warn("Topology input does not exist")
+        sys.exit(1)
+    if not os.path.exists(esti_path):
+        warnings.warn("Estimate does not exist")
+        sys.exit(1)
+    if not os.path.exists(flex_path):
+        warnings.warn("Flexibility does not exist")
+        sys.exit(1)
 
     values = dict()
 
-    topologies = (
-        list(set(os.listdir(INPUT_DIR)) & set(args.topologies))
-        if args.topologies
-        else os.listdir(INPUT_DIR)
-    )
-    for topo in topologies:
-        values[topo] = dict()
-        topo_input_dir = os.path.join(INPUT_DIR, topo)
-        topo_esti_dir = os.path.join(TOPO_DIR, topo, "estimate_files")
-        topo_flex_dir = os.path.join(TOPO_DIR, topo, "flex_files")
-
-        estimates = map(lambda f: os.path.splitext(f)[0], os.listdir(topo_esti_dir))
-        if args.esti_files:
-            estimates = list(set(estimates) & set(args.esti_files))
-
-        flexibilities = map(
-            lambda f: os.path.splitext(f)[0],
-            get_flex_files(topo_flex_dir, topo_flex_dir),
+    bases = list(
+        set(os.listdir(topo_input_dir))
+        & set(
+            [
+                "ReactiveLoadController1",
+                "ReactiveLoadController2",
+                "ReactiveLoadController3",
+                "SimpleController",
+            ]
+            + args.bases
         )
+    )
+    with open(esti_path) as esti_file, open(flex_path) as flex_file:
+        flexibility = pd.read_json(flex_file)
+        estimate = pd.read_json(esti_file)
 
-        if args.flex_files:
-            flexibilities = list(set(flexibilities) & set(args.flex_files))
-
-        bases = list(set(os.listdir(topo_input_dir)) & set(BASES))
-        for b in bases:
-            base_dir = os.path.join(topo_input_dir, b)
-            for esti in estimates:
-                if esti not in values[topo]:
-                    values[topo][esti] = dict()
-                esti_path = os.path.join(topo_esti_dir, esti) + ".json"
-                for flex in flexibilities:
-                    if flex not in values[topo][esti]:
-                        values[topo][esti][flex] = dict()
-                    flex_path = os.path.join(topo_flex_dir, flex) + ".json"
-                    values[topo][esti][flex][b] = parse_traces(
-                        base_dir, esti_path, flex_path
-                    )
+        for base in bases:
+            base_dir = os.path.join(topo_input_dir, base)
+            values[base] = parse_traces(base_dir, estimate, flexibility)
 
         algorithms = (
             list(set(os.listdir(topo_input_dir)) & set(args.algorithms))
             if args.algorithms
-            else list(set(os.listdir(topo_input_dir)) - set(BASES))
+            else list(set(os.listdir(topo_input_dir)) - set(bases))
         )
         for alg in algorithms:
-            alg_input_dir = os.path.join(topo_input_dir, alg)
-            for esti in estimates:
-                esti_input_dir = os.path.join(alg_input_dir, esti)
-                if os.path.exists(esti_input_dir):
-                    esti_path = os.path.join(topo_esti_dir, esti) + ".json"
-                    for flex in flexibilities:
-                        flex_input_dir = os.path.join(esti_input_dir, flex)
-                        if os.path.exists(flex_input_dir):
-                            flex_path = os.path.join(topo_flex_dir, flex) + ".json"
-                            values[topo][esti][flex][alg] = parse_traces(
-                                flex_input_dir, esti_path, flex_path
-                            )
+            alg_input_dir = os.path.join(
+                topo_input_dir, alg, args.estimate, args.flexibility
+            )
 
-    for topo, topo_values in values.items():
-        for esti, esti_values in topo_values.items():
-            for flex, flex_values in esti_values.items():
-                output_dir = os.path.join(OUTPUT_DIR, topo, esti, flex)
-                respecting_area(flex_values, output_dir)
-                difference_area(flex_values, output_dir)
-                difference_lines(flex_values, output_dir)
-                power_drawn_multi_lines(flex_values, output_dir)
-                difference_multi_lines(flex_values, output_dir)
+            if os.path.exists(alg_input_dir):
+                values[alg] = parse_traces(alg_input_dir, estimate, flexibility)
+
+    output_dir = os.path.realpath(
+        os.path.join(
+            dir, "..", args.output_dir, args.topology, args.estimate, args.flexibility
+        )
+    )
+    respecting_area(values, output_dir)
+    difference_area(values, output_dir)
+    difference_lines(values, output_dir)
+    power_drawn_multi_lines(values, output_dir)
+    difference_multi_lines(values, output_dir)
 
 
 if __name__ == "__main__":
