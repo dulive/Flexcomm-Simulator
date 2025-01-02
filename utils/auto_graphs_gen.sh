@@ -69,10 +69,10 @@ recursive_flex() {
 
 loop_flexes() {
     flex_dir="${TOPO_DIR}/${1}/flex_files"
-    if [[ -z "${FLEX_FILES[*]}" ]]; then
+    if [[ -z "${FLEXES[*]}" ]]; then
 		recursive_flex "${1}" "${2}" "${flex_dir}"
 	else
-		for flex in "${FLEX_FILES[@]}"; do
+		for flex in "${FLEXES[@]}"; do
 			if [[ -f "${flex_dir}/${flex}.json" ]]; then
 				gen_graphs "${1}" "${2}" "${flex}"
 			else
