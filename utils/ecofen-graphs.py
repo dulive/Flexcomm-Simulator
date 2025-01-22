@@ -77,7 +77,7 @@ def power_drawn_multi_lines(values, output_dir):
         ax_single.set_title(f"{node}", fontsize=12, fontweight="bold")
 
     num_subplots = len(values)
-    nodes = len(next(iter(values.values())))
+    nodes = len(next(iter(values.values()))[1]["Node"].unique())
     colors = plt.get_cmap("tab20", nodes)
 
     power_drawn_dir = os.path.join(output_dir, "power_drawn_multi_lines")
@@ -99,7 +99,7 @@ def power_drawn_multi_lines(values, output_dir):
 
     for i, (_, alg_values) in enumerate(values.items()):
         node_values = alg_values[1]
-        for node, (_, axs) in zip(node_values.columns, sub_plots):
+        for node, (_, axs) in zip(node_values["Node"].unique(), sub_plots):
             data = node_values[node_values["Node"] == node]
             ax = axs[i]
             ax.plot(data["Time"], data["Available"])
@@ -176,7 +176,7 @@ def difference_multi_lines(values, output_dir):
         ax_single.set_title(f"{node}", fontsize=12, fontweight="bold")
 
     num_subplots = len(values)
-    nodes = len(next(iter(values.values())))
+    nodes = len(next(iter(values.values()))[1]["Node"].unique())
     colors = plt.get_cmap("tab20", nodes)
 
     difference_dir = os.path.join(output_dir, "difference_multi_lines")
@@ -185,7 +185,7 @@ def difference_multi_lines(values, output_dir):
     fig, axs = plt.subplots(num_subplots, 1, figsize=(6, 8), sharey=True, sharex=True)
 
     for (_, alg_values), ax in zip(values.items(), axs):
-        for node in alg_values[1].columns:
+        for node in alg_values[1]["Node"].unique():
             data = alg_values[1][alg_values[1]["Node"] == node]
             ax.plot(data["Time"], data["Difference"])
 
@@ -234,7 +234,7 @@ def difference_multi_lines(values, output_dir):
 
 def difference_lines(values, output_dir):
     num_subplots = len(values)
-    nodes = len(next(iter(values.values())))
+    nodes = len(next(iter(values.values()))[1]["Node"].unique())
     colors = plt.get_cmap("tab20", nodes)
 
     difference_dir = os.path.join(output_dir, "difference_lines")
@@ -245,7 +245,7 @@ def difference_lines(values, output_dir):
     axs = axs.flatten()
 
     for (_, alg_values), ax in zip(values.items(), axs):
-        for node in alg_values[1].columns:
+        for node in alg_values[1]["Node"].unique():
             data = alg_values[1][alg_values[1]["Node"] == node]
             ax.plot("Time", "Difference", data=data)
 
