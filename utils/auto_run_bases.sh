@@ -16,7 +16,7 @@ while [[ ${#} -gt 0 ]]; do
     ;;
   -s | --skip-bases)
     USE_BASES=false
-    shift 2
+    shift 1
     ;;
   *)
     echo "Unkown option ${1}"
