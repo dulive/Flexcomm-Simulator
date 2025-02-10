@@ -4,6 +4,7 @@ DIR="$(dirname "$(realpath "$0")")/"
 FLEXES="flex_files"
 PRODS="prod_files"
 BASES=("ReactiveLoadController1" "ReactiveLoadController2" "ReactiveLoadController3" "SimpleController")
+TOPOLOGIES="topologies"
 
 while [[ ${#} -gt 0 ]]; do
   case ${1} in
@@ -35,6 +36,10 @@ while [[ ${#} -gt 0 ]]; do
     BASES+=("${2}")
     shift 2
     ;;
+	-d | --topologies-dir)
+		TOPOLOGIES=${2}
+		shift 2
+		;;
   *)
     echo "Unkown option ${1}"
     exit 1
@@ -47,9 +52,9 @@ if [[ -z ${TOPO} ]]; then
   exit 1
 fi
 
-FLEX_DIR="$(realpath "${DIR}/../topologies/${TOPO}/${FLEXES}")"
-PROD_DIR="$(realpath "${DIR}/../topologies/${TOPO}/${PRODS}")"
-ESTI_DIR="$(realpath "${DIR}/../topologies/${TOPO}/estimate_files")"
+FLEX_DIR="$(realpath "${DIR}/../${TOPOLOGIES}/${TOPO}/${FLEXES}")"
+PROD_DIR="$(realpath "${DIR}/../${TOPOLOGIES}/${TOPO}/${PRODS}")"
+ESTI_DIR="$(realpath "${DIR}/../${TOPOLOGIES}/${TOPO}/estimate_files")"
 
 recursive_ren_norm() {
   if [[ -d "${1}" ]]; then
