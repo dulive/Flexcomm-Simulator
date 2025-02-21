@@ -520,8 +520,7 @@ def power_drawn():
     pass
 
 
-def parse_traces(alg_dir, estimate, flexibility):
-    trace_path = os.path.join(alg_dir, "ecofen-trace.csv")
+def parse_traces(trace_path, estimate, flexibility):
     with open(trace_path) as trace_file:
         trace = pd.read_csv(trace_file, sep=";")
 
@@ -623,8 +622,8 @@ def main():
         estimate = pd.read_json(esti_file)
 
         for base in bases:
-            base_dir = os.path.join(topo_input_dir, base)
-            values[base] = parse_traces(base_dir, estimate, flexibility)
+            base_trace = os.path.join(topo_input_dir, base, "ecofen-trace.csv")
+            values[base] = parse_traces(base_trace, estimate, flexibility)
 
         algorithms = (
             list(set(os.listdir(topo_input_dir)) & set(args.algorithms))
@@ -632,12 +631,12 @@ def main():
             else list(set(os.listdir(topo_input_dir)) - set(bases))
         )
         for alg in algorithms:
-            alg_input_dir = os.path.join(
-                topo_input_dir, alg, args.estimate, args.flexibility
+            trace_path = os.path.join(
+                topo_input_dir, alg, args.estimate, args.flexibility, "ecofen-trace.csv"
             )
 
-            if os.path.exists(alg_input_dir):
-                values[alg] = parse_traces(alg_input_dir, estimate, flexibility)
+            if os.path.exists(trace_path):
+                values[alg] = parse_traces(trace_path, estimate, flexibility)
 
     output_dir = os.path.realpath(
         os.path.join(
