@@ -24,7 +24,7 @@ while [[ ${#} -gt 0 ]]; do
 		shift 2
 		;;
 	-a | --algorithms)
-		ALGS+=("${2}")
+		ALGORITHMS+=("${2}")
 		shift 2
 		;;
 	-b | --bases)
@@ -61,7 +61,16 @@ recursive_flex() {
     elif [[ -f "${3}" ]]; then
         flex_name="${3##${TOPO_DIR}/${1}/flex_files/}"
         flex_name="${flex_name%%.*}"
-        gen_graphs "${1}" "${2}" "${flex_name}"
+        if [[ -n "${ALGORITHMS[*]}" ]]; then
+            for alg in "${ALGORITHMS[@]}"; do
+                if [[ -d "${INPUT_DIR}/${1}/${alg}/${2}/${flex_name}" ]]; then
+                    gen_graphs "${1}" "${2}" "${flex_name}"
+                    break
+                fi
+            done
+        else
+            gen_graphs "${1}" "${2}" "${flex_name}"
+        fi
     else
         echo "Invalid flexibility ${3}" 1>&2
     fi
